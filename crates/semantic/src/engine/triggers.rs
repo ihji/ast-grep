@@ -1,0 +1,88 @@
+use std::fmt::Debug;
+
+use crate::engine::{
+  constraints::Constraint,
+  domain::{AMem, AValue},
+  findings::NullDereferenceFinding,
+  trace::Trace,
+};
+
+#[derive(Debug)]
+pub struct Triggers {
+  pub triggers: Vec<Box<dyn Trigger>>,
+}
+
+pub enum Checked {
+  Disarmed,
+  OnHold,
+  Fired(Box<Effect>),
+}
+
+pub type Effect = dyn FnMut(&mut AMem);
+
+pub trait Trigger: Debug {
+  fn name(&self) -> &str;
+  fn trace(&self) -> &Trace;
+  fn check(&self, memory: &AMem) -> Checked;
+}
+
+impl Triggers {
+  pub fn new() -> Self {
+    Self { triggers: vec![] }
+  }
+}
+
+#[derive(Debug)]
+pub struct NullTrigger {
+  value: AValue,
+  trace: Trace,
+}
+
+impl Trigger for NullTrigger {
+  fn name(&self) -> &str {
+    "NullTrigger"
+  }
+
+  fn trace(&self) -> &Trace {
+    &self.trace
+  }
+
+  fn check(&self, memory: &AMem) -> Checked {
+    println!("Checking NullTrigger for value: {}", self.value);
+    let null_constraint = memory.constraints.get_constraint(&self.value);
+    let is_null = match null_constraint {
+      Some(Constraint::IsNull) => true,
+      _ => false,
+    };
+    let trace = self.trace.clone();
+    if is_null {
+      Checked::Fired(Box::new(move |mem: &mut AMem| {
+        mem.add_finding(Box::new(NullDereferenceFinding::new(
+          "Possible null dereference".to_string(),
+          trace.clone(),
+        )));
+      }))
+    } else if matches!(self.value, AValue::ANull { .. }) {
+      Checked::Fired(Box::new(move |mem: &mut AMem| {
+        mem.add_finding(Box::new(NullDereferenceFinding::new(
+          "Definite null dereference".to_string(),
+          trace.clone(),
+        )));
+      }))
+    } else if self.value.is_symbolic() {
+      Checked::OnHold
+    } else {
+      Checked::Disarmed
+    }
+  }
+}
+
+impl NullTrigger {
+  // TODO: should we use &Avalue instead?
+  pub fn new(value: AValue, memory: &AMem) -> Self {
+    Self {
+      value,
+      trace: memory.trace.clone(),
+    }
+  }
+}

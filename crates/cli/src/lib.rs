@@ -13,6 +13,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+use ast_grep_semantic::cli::{run_deep_scan, DeepScanArg};
 use completions::{run_shell_completion, CompletionsArg};
 use config::ProjectConfig;
 use lsp::{run_language_server, LspArg};
@@ -63,6 +64,8 @@ enum Commands {
   /// Generate rule docs for current configuration. (Not Implemented Yet)
   #[cfg(debug_assertions)]
   Docs,
+  /// Perform deep semantic analysis for security vulnerabilities
+  DeepScan(DeepScanArg),
 }
 
 pub fn execute_main() -> Result<()> {
@@ -142,6 +145,7 @@ pub fn main_with_args(args: impl Iterator<Item = String>) -> Result<()> {
     Commands::Completions(arg) => run_shell_completion::<App>(arg),
     #[cfg(debug_assertions)]
     Commands::Docs => todo!("todo, generate rule docs based on current config"),
+    Commands::DeepScan(arg) => run_deep_scan(arg),
   }
 }
 
