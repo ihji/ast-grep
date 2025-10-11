@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::engine::constraints::Constraints;
 use crate::engine::findings::{Finding, Findings};
+use crate::engine::history::HistoryRegistry;
 use crate::engine::trace::Trace;
 use crate::engine::triggers::{Checked, Trigger, Triggers};
 use crate::il::{MethodSig, Type};
@@ -248,6 +249,7 @@ impl Neg for AValue {
 #[derive(Debug)]
 pub struct AMem {
   pub memory: HashMap<ALoc, AValue>,
+  pub history_registry: HistoryRegistry,
   pub triggers: Triggers,
   pub constraints: Constraints,
   pub trace: Trace,
@@ -258,6 +260,7 @@ impl AMem {
   pub fn new() -> Self {
     AMem {
       memory: HashMap::new(),
+      history_registry: HistoryRegistry::new(),
       triggers: Triggers::new(),
       constraints: Constraints::new(),
       trace: Trace::new(),

@@ -106,6 +106,10 @@ impl Trace {
     });
   }
 
+  pub fn events(&self) -> &Vec<TraceEvent> {
+    &self.ctx.events
+  }
+
   pub fn add_branch(
     &mut self,
     context: &Context,

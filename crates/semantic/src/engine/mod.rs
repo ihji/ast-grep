@@ -2,6 +2,7 @@ pub mod constraints;
 pub mod context;
 pub mod domain;
 pub mod findings;
+pub mod history;
 pub mod interval;
 pub mod path_explorer;
 pub mod sym_exec;
