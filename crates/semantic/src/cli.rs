@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use crate::engine::context::Context;
 use crate::engine::sym_exec::execute;
+use crate::engine::trace::TraceArena;
 use crate::report::reporter::CliReporter;
 use crate::{ast::go::GoConverter, il::CFGs};
 use petgraph::dot::{Config, Dot};
@@ -54,6 +55,7 @@ pub fn run_deep_scan(arg: DeepScanArg) -> Result<()> {
       root: &root,
       source_info: converter.source_info,
       file_path: arg.path.to_str().unwrap_or("unknown").to_string(),
+      trace_arena: TraceArena::new(),
       reporter: Box::new(CliReporter {}),
     };
     execute(&context, &cfgs);

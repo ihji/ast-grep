@@ -11,7 +11,7 @@ impl Reporter for CliReporter {
     for finding in &findings.all {
       println!("Finding: {}", finding.message());
       println!("Location: {:?}", finding.location());
-      println!("Trace: {}", finding.trace());
+      println!("Trace: {:?}", finding.trace());
     }
   }
 }

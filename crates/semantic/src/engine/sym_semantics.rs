@@ -130,7 +130,7 @@ pub fn transfer_stmt(
       memory.trace.add_assume(context, &tag, format!("{}", value));
       let v = eval(memory, value);
       if let AInt(0) = v {
-        println!("Assumption is false, path ends here: {}", memory.trace);
+        println!("Assumption is false, path ends here: {:?}", memory.trace);
         path_explorer.mark_done();
         return;
       }

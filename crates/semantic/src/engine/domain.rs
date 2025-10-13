@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use crate::engine::constraints::Constraints;
 use crate::engine::findings::{Finding, Findings};
 use crate::engine::history::HistoryRegistry;
-use crate::engine::trace::Trace;
+use crate::engine::trace::{Trace, TraceArena};
 use crate::engine::triggers::{Checked, Trigger, Triggers};
 use crate::il::{MethodSig, Type};
 use std::fmt::{self, Display, Formatter};
@@ -296,7 +296,11 @@ impl AMem {
   pub fn add_trigger(&mut self, trigger: Box<dyn Trigger>) {
     match trigger.check(self) {
       Checked::Fired(mut effect) => {
-        println!("Trigger {} fired at trace: {}", trigger.name(), self.trace);
+        println!(
+          "Trigger {} fired at trace: {:?}",
+          trigger.name(),
+          self.trace
+        );
         effect(self);
       }
       Checked::Disarmed => return,
@@ -304,6 +308,37 @@ impl AMem {
         self.triggers.triggers.push(trigger);
       }
     }
+  }
+
+  fn fmt_core(&self, f: &mut Formatter<'_>, trace_arena: Option<&TraceArena>) -> fmt::Result {
+    writeln!(f, "---- AMem State ----")?;
+    writeln!(f, "Memory:")?;
+    let mut sorted_memory: Vec<_> = self.memory.iter().collect();
+    sorted_memory.sort_by_key(|(k, _)| format!("{:?}", k));
+    for (loc, val) in sorted_memory {
+      writeln!(f, "  {} -> {}", loc, val)?;
+    }
+
+    writeln!(f, "Triggers: {:?}", self.triggers)?;
+    writeln!(f, "Constraints: {:?}", self.constraints)?;
+    writeln!(f, "History Registry:\n{}", self.history_registry)?;
+
+    match trace_arena {
+      Some(arena) => {
+        writeln!(f, "Trace:")?;
+        writeln!(f, "{}", self.trace.fmt_with(arena))?;
+      }
+      None => {
+        writeln!(f, "Trace: {:?}", self.trace)?;
+      }
+    }
+
+    writeln!(f, "Findings: {:?}", self.findings)?;
+    writeln!(f, "--------------------")
+  }
+
+  pub fn display_with_trace<'a>(&'a self, arena: &'a TraceArena) -> AMemWithTraceDisplay<'a> {
+    AMemWithTraceDisplay { amem: self, arena }
   }
 
   // TODO: add and check methods for constraints
@@ -395,24 +430,20 @@ impl Display for SExpr {
   }
 }
 
+pub struct AMemWithTraceDisplay<'a> {
+  amem: &'a AMem,
+  arena: &'a TraceArena,
+}
+
+impl<'a> Display for AMemWithTraceDisplay<'a> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    self.amem.fmt_core(f, Some(self.arena))
+  }
+}
+
 impl Display for AMem {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    writeln!(f, "---- AMem State ----")?;
-    writeln!(f, "Memory:")?;
-    let mut sorted_memory: Vec<_> = self.memory.iter().collect();
-    // Note: Sorting is based on the Debug representation for deterministic output.
-    // This might be slow for very large memory maps.
-    sorted_memory.sort_by_key(|(k, _)| format!("{:?}", k));
-    for (loc, val) in sorted_memory {
-      writeln!(f, "  {} -> {}", loc, val)?;
-    }
-
-    writeln!(f, "Triggers: {:?}", self.triggers)?;
-    writeln!(f, "Constraints: {:?}", self.constraints)?;
-    writeln!(f, "History Registry:\n{}", self.history_registry)?;
-    writeln!(f, "Trace:\n{}", self.trace)?;
-    writeln!(f, "Findings: {:?}", self.findings)?;
-    writeln!(f, "--------------------")
+    self.fmt_core(f, None)
   }
 }
 

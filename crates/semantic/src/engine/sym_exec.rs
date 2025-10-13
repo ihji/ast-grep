@@ -77,7 +77,10 @@ pub fn execute_path(
       next_id = Some(edges[0].target());
     }
   }
-  println!("Final memory: {}", memory);
+  println!(
+    "Final memory: {}",
+    memory.display_with_trace(&context.trace_arena)
+  );
   memory
 }
 

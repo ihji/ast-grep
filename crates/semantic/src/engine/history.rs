@@ -24,12 +24,12 @@ pub enum HistoryEventKind {
   Dereference,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoryEvent {
   pub kind: HistoryEventKind,
   pub location: Option<Pos>,
   pub description: String,
-  pub trace_event_idx: Option<usize>, // Link to the trace event
+  pub trace_event_idx: Option<u64>, // Link to the trace event
 }
 
 #[derive(Debug, Clone, Default)]
@@ -60,28 +60,29 @@ pub struct HistoryRegistry {
   histories: HashMap<ValueId, ValueHistory>,
 }
 
+impl Display for HistoryEvent {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(
+      f,
+      "{:?} at {}: {}",
+      self.kind,
+      self.location.as_ref().unwrap_or(&Pos::default()),
+      self.description
+    )
+  }
+}
+
 impl Display for HistoryRegistry {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     for (value_id, history) in &self.histories {
       writeln!(f, "History for {:?} (ID: {}):", value_id.kind, value_id.id)?;
       if let Some(creation) = &history.creation {
-        writeln!(
-          f,
-          "  Created at {}: {}",
-          creation.location.as_ref().unwrap_or(&Pos::default()),
-          creation.description
-        )?;
+        writeln!(f, "  {}", creation)?;
       } else {
         writeln!(f, "  Creation event not recorded.")?;
       }
       for event in &history.events {
-        writeln!(
-          f,
-          "  Event {:?} at {}: {}",
-          event.kind,
-          event.location.as_ref().unwrap_or(&Pos::default()),
-          event.description
-        )?;
+        writeln!(f, "  {}", event)?;
       }
     }
     Ok(())
@@ -101,7 +102,7 @@ impl HistoryRegistry {
     id: u32,
     location: Option<Pos>,
     description: String,
-    trace_idx: Option<usize>,
+    trace_idx: Option<u64>,
   ) {
     let value_id = ValueId { kind, id };
     let event = HistoryEvent {
@@ -122,7 +123,7 @@ impl HistoryRegistry {
     event_kind: HistoryEventKind,
     location: Option<Pos>,
     description: String,
-    trace_idx: Option<usize>,
+    trace_idx: Option<u64>,
   ) {
     let value_id = ValueId { kind, id };
     let event = HistoryEvent {
@@ -142,37 +143,34 @@ impl HistoryRegistry {
   }
 
   pub fn track_null_creation(&mut self, null_id: u32, trace: &Trace, code_snippet: String) {
-    let trace_idx = trace.events().len().checked_sub(1);
     self.register_creation(
       ValueKind::Null,
       null_id,
       trace.current_pos(),
       format!("Null created: {}", code_snippet),
-      trace_idx,
+      trace.tail(),
     );
   }
 
   pub fn track_null_assignment(&mut self, null_id: u32, trace: &Trace, code_snippet: String) {
-    let trace_idx = trace.events().len().checked_sub(1);
     self.register_event(
       ValueKind::Null,
       null_id,
       HistoryEventKind::Assignment,
       trace.current_pos(),
       format!("Null assigned: {}", code_snippet),
-      trace_idx,
+      trace.tail(),
     );
   }
 
   pub fn track_null_dereference(&mut self, null_id: u32, trace: &Trace, code_snippet: String) {
-    let trace_idx = trace.events().len().checked_sub(1);
     self.register_event(
       ValueKind::Null,
       null_id,
       HistoryEventKind::Dereference,
       trace.current_pos(),
       format!("Null dereferenced: {}", code_snippet),
-      trace_idx,
+      trace.tail(),
     );
   }
 }
