@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use crate::engine::trace::{Pos, Trace};
 
@@ -58,6 +58,34 @@ impl ValueHistory {
 #[derive(Debug, Default)]
 pub struct HistoryRegistry {
   histories: HashMap<ValueId, ValueHistory>,
+}
+
+impl Display for HistoryRegistry {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    for (value_id, history) in &self.histories {
+      writeln!(f, "History for {:?} (ID: {}):", value_id.kind, value_id.id)?;
+      if let Some(creation) = &history.creation {
+        writeln!(
+          f,
+          "  Created at {}: {}",
+          creation.location.as_ref().unwrap_or(&Pos::default()),
+          creation.description
+        )?;
+      } else {
+        writeln!(f, "  Creation event not recorded.")?;
+      }
+      for event in &history.events {
+        writeln!(
+          f,
+          "  Event {:?} at {}: {}",
+          event.kind,
+          event.location.as_ref().unwrap_or(&Pos::default()),
+          event.description
+        )?;
+      }
+    }
+    Ok(())
+  }
 }
 
 impl HistoryRegistry {
@@ -132,6 +160,18 @@ impl HistoryRegistry {
       HistoryEventKind::Assignment,
       trace.current_pos(),
       format!("Null assigned: {}", code_snippet),
+      trace_idx,
+    );
+  }
+
+  pub fn track_null_dereference(&mut self, null_id: u32, trace: &Trace, code_snippet: String) {
+    let trace_idx = trace.events().len().checked_sub(1);
+    self.register_event(
+      ValueKind::Null,
+      null_id,
+      HistoryEventKind::Dereference,
+      trace.current_pos(),
+      format!("Null dereferenced: {}", code_snippet),
       trace_idx,
     );
   }

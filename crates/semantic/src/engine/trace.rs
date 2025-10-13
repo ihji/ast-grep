@@ -56,6 +56,21 @@ pub struct Pos {
   pub line: usize,
 }
 
+impl Default for Pos {
+  fn default() -> Self {
+    Self {
+      file: "unknown".to_string(),
+      line: 0,
+    }
+  }
+}
+
+impl Display for Pos {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}:{}", self.file, self.line)
+  }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TraceEvent {
   BranchTaken { taken: bool, next: Pos, at: Pos },

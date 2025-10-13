@@ -86,6 +86,20 @@ pub fn transfer_stmt(
     } => {
       let loc = eval_loc(memory, left);
       let val = eval(memory, right);
+      if let AValue::ANull { id } = &val {
+        if let Value {
+          kind: ValueKind::NullLit,
+          ..
+        } = right
+        {
+          memory
+            .history_registry
+            .track_null_creation(*id, &memory.trace, format!("{}", right));
+        }
+        memory
+          .history_registry
+          .track_null_assignment(*id, &memory.trace, format!("{}", left));
+      }
       memory.update(loc, val);
     }
     CfgStatement::Invoke {

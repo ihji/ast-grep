@@ -398,8 +398,6 @@ impl Display for SExpr {
 impl Display for AMem {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     writeln!(f, "---- AMem State ----")?;
-    writeln!(f, "Triggers: {:?}", self.triggers)?;
-
     writeln!(f, "Memory:")?;
     let mut sorted_memory: Vec<_> = self.memory.iter().collect();
     // Note: Sorting is based on the Debug representation for deterministic output.
@@ -409,7 +407,9 @@ impl Display for AMem {
       writeln!(f, "  {} -> {}", loc, val)?;
     }
 
+    writeln!(f, "Triggers: {:?}", self.triggers)?;
     writeln!(f, "Constraints: {:?}", self.constraints)?;
+    writeln!(f, "History Registry:\n{}", self.history_registry)?;
     writeln!(f, "Trace:\n{}", self.trace)?;
     writeln!(f, "Findings: {:?}", self.findings)?;
     writeln!(f, "--------------------")
