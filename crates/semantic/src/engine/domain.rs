@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::engine::constraints::Constraints;
 use crate::engine::context::SessionCtx;
-use crate::engine::findings::{Finding, Findings};
 use crate::engine::history::HistoryRegistry;
-use crate::engine::trace::{Trace, TraceArena};
+use crate::engine::reports::{Finding, Reports};
+use crate::engine::trace::Trace;
 use crate::engine::triggers::{Checked, Trigger, Triggers};
 use crate::il::{MethodSig, Type};
 use std::fmt::{self, Display, Formatter};
@@ -254,7 +254,7 @@ pub struct AMem {
   pub triggers: Triggers,
   pub constraints: Constraints,
   pub trace: Trace,
-  pub findings: Findings,
+  pub findings: Reports,
 }
 
 impl AMem {
@@ -265,7 +265,7 @@ impl AMem {
       triggers: Triggers::new(),
       constraints: Constraints::new(),
       trace: Trace::new(),
-      findings: Findings::new(),
+      findings: Reports::new(),
     }
   }
 
@@ -290,7 +290,7 @@ impl AMem {
     self.memory.contains_key(loc)
   }
 
-  pub fn add_finding(&mut self, finding: Box<dyn Finding>) {
+  pub fn add_finding(&mut self, finding: Finding) {
     self.findings.all.push(finding);
   }
 

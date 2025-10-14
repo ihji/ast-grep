@@ -1,17 +1,11 @@
 use anyhow::Result;
 use ast_grep_core::language::Language;
-use ast_grep_core::AstGrep;
 use ast_grep_language::SupportLang;
 use clap::Parser;
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
-use crate::engine::context::SessionCtx;
-use crate::engine::sym_exec::execute;
-use crate::engine::trace::TraceArena;
-use crate::report::reporter::CliReporter;
-use crate::{ast::go::GoConverter, il::CFGs};
-use petgraph::dot::{Config, Dot};
+use crate::analyze_source;
 
 #[derive(Parser)]
 pub struct DeepScanArg {
@@ -39,30 +33,24 @@ pub fn run_deep_scan(arg: DeepScanArg) -> Result<()> {
     })?
   };
 
-  // If the language is Go, convert to IL
-  if lang == SupportLang::Go {
-    let root = AstGrep::new(&content, lang);
-    let mut converter = GoConverter::new(arg.path.clone());
-    converter.convert(&root);
-    println!("IL: {}", &converter.program);
-    let mut cfgs = CFGs::new();
-    cfgs.insert(converter.program);
-    for cfg in &cfgs.0 {
-      println!("CFG for method: {}", cfg.0.name);
-      println!("{}", Dot::with_config(&cfg.1.graph, &[Config::EdgeNoLabel]));
+  let findings = analyze_source(content, lang, arg.path.to_str().map(|s| s.to_string()));
+  match findings {
+    Ok(findings) => {
+      if findings.all.is_empty() {
+        println!("No issues found.");
+      } else {
+        println!("Found {} issues.", findings.all.len());
+        for finding in &findings.all {
+          println!("-----------------------------------------");
+          println!("Kind: {:?}", finding.kind());
+          println!("Location: {:?}", finding.location());
+          println!("Trace: {:#?}", finding.trace());
+        }
+      }
     }
-    let context = SessionCtx {
-      root: &root,
-      source_info: converter.source_info,
-      file_path: arg.path.to_str().unwrap_or("unknown").to_string(),
-      trace_arena: TraceArena::new(),
-      reporter: Box::new(CliReporter {}),
-    };
-    execute(&context, &cfgs);
-  } else {
-    // For other languages, just print the AST
-    println!("unsupported language {}", lang);
+    Err(e) => {
+      eprintln!("Error during analysis: {}", e);
+    }
   }
-
   Ok(())
 }

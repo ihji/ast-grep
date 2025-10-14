@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use crate::engine::{
   constraints::Constraint,
   domain::{AMem, AValue},
-  findings::NullDereferenceFinding,
   history::ValueKind,
+  reports::{Finding, FindingKind},
   trace::Trace,
 };
 
@@ -58,11 +58,11 @@ impl Trigger for NullTrigger {
     let trace = self.trace.clone();
     if is_null {
       Checked::Fired(Box::new(move |mem: &mut AMem| {
-        mem.add_finding(Box::new(NullDereferenceFinding::new(
-          "Possible null dereference".to_string(),
+        mem.add_finding(Finding::new(
+          FindingKind::NullDereference,
           trace.clone(),
           None,
-        )));
+        ));
       }))
     } else if let AValue::ANull { id } = self.value {
       let history = memory
@@ -70,11 +70,11 @@ impl Trigger for NullTrigger {
         .get_history(ValueKind::Null, id)
         .cloned();
       Checked::Fired(Box::new(move |mem: &mut AMem| {
-        mem.add_finding(Box::new(NullDereferenceFinding::new(
-          "Definite null dereference".to_string(),
+        mem.add_finding(Finding::new(
+          FindingKind::NullDereference,
           trace.clone(),
           history.clone(),
-        )));
+        ));
       }))
     } else if self.value.is_symbolic() {
       Checked::OnHold

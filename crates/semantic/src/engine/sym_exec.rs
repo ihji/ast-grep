@@ -4,6 +4,7 @@ use petgraph::visit::EdgeRef;
 use crate::engine::context::SessionCtx;
 use crate::engine::domain::AMem;
 use crate::engine::path_explorer::{DumbPathExplorer, PathExplorer};
+use crate::engine::reports::Reports;
 use crate::engine::sym_semantics::transfer_block;
 use crate::il::{CFGs, CfgEdgeKind, MethodSig, CFG};
 
@@ -43,7 +44,6 @@ pub fn execute_path(
   while let Some(id) = next_id {
     let current_block = &cfg.graph[id];
     transfer_block(context, path_explorer, current_block, &mut memory);
-    context.reporter.report(context, &memory.findings);
     let edges = cfg.graph.edges(id).collect::<Vec<_>>();
     if path_explorer.is_done() || edges.is_empty() {
       path_explorer.mark_done();
@@ -81,19 +81,25 @@ pub fn execute_path(
   memory
 }
 
-pub fn execute_method(context: &SessionCtx, method_sig: &MethodSig, cfg: &CFG) {
+pub fn execute_method(context: &SessionCtx, method_sig: &MethodSig, cfg: &CFG) -> Reports {
   let mut path_explorer = DumbPathExplorer::new(10);
+  let mut findings = Reports::new();
   loop {
-    execute_path(context, method_sig, cfg, &mut path_explorer);
+    let mem = execute_path(context, method_sig, cfg, &mut path_explorer);
+    findings.all.extend(mem.findings.all);
     if !path_explorer.next_path() {
       break;
     }
   }
+  findings
 }
 
-pub fn execute(context: &SessionCtx, cfg: &CFGs) {
+pub fn execute(context: &SessionCtx, cfg: &CFGs) -> Reports {
+  let mut all_findings = Reports::new();
   for (method_sig, cfg) in &cfg.0 {
     println!("Executing method: {}", method_sig.name);
-    execute_method(context, method_sig, cfg);
+    let findings = execute_method(context, method_sig, cfg);
+    all_findings.all.extend(findings.all);
   }
+  all_findings
 }

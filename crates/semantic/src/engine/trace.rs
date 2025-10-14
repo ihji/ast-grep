@@ -140,7 +140,7 @@ impl<'a> Display for TraceFormatter<'a> {
       .collect_forward_with_history(self.trace.tail, self.history)
       .into_iter()
     {
-      writeln!(f, "  {}", ev.fmt_with(&self.ctx.trace_arena))?;
+      writeln!(f, "  {}", ev.fmt_with(&self.ctx.trace_arena, self.history))?;
     }
     Ok(())
   }
@@ -257,7 +257,7 @@ impl Display for Pos {
 pub struct Ctx {
   cid: usize,
   callsite: Option<Pos>,
-  events: Vec<TraceEvent>,
+  tail: Option<TraceIdx>,
 }
 
 impl Ctx {
@@ -265,11 +265,11 @@ impl Ctx {
     Self {
       cid: 0,
       callsite: None,
-      events: vec![],
+      tail: None,
     }
   }
-  fn events(&self) -> &Vec<TraceEvent> {
-    &self.events
+  pub fn tail(&self) -> Option<TraceIdx> {
+    self.tail
   }
 }
 
@@ -281,15 +281,63 @@ pub enum TraceEvent {
   History { event: HistoryEvent },
 }
 
+impl Display for TraceEvent {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      TraceEvent::BranchTaken { taken, next, at } => {
+        write!(
+          f,
+          "Branch at {}:{} was taken {} to {}",
+          at.file,
+          at.line,
+          if *taken { "True" } else { "False" },
+          if next.line == 0 {
+            "unknown location".to_string()
+          } else {
+            format!("{}:{}", next.file, next.line)
+          }
+        )
+      }
+      TraceEvent::Assumed { condition, at } => {
+        write!(f, "Assumed '{}' at {}:{}", condition, at.file, at.line)
+      }
+      TraceEvent::Invocation { ctx: _, at } => {
+        write!(f, "Function invoked at {}:{}:\n", at.file, at.line)
+      }
+      TraceEvent::History { event } => {
+        write!(f, "Event {}", event)
+      }
+    }
+  }
+}
+
 impl TraceEvent {
-  pub fn fmt_with<'a>(&'a self, arena: &'a TraceArena) -> TraceEventFormatter<'a> {
-    TraceEventFormatter { event: self, arena }
+  pub fn fmt_with<'a>(
+    &'a self,
+    arena: &'a TraceArena,
+    history: Option<&'a ValueHistory>,
+  ) -> TraceEventFormatter<'a> {
+    TraceEventFormatter {
+      event: self,
+      arena,
+      history,
+    }
+  }
+
+  pub fn at(&self) -> Option<&Pos> {
+    match self {
+      TraceEvent::BranchTaken { at, .. } => Some(at),
+      TraceEvent::Assumed { at, .. } => Some(at),
+      TraceEvent::Invocation { at, .. } => Some(at),
+      TraceEvent::History { event } => event.location.as_ref(),
+    }
   }
 }
 
 pub struct TraceEventFormatter<'a> {
   event: &'a TraceEvent,
   arena: &'a TraceArena,
+  history: Option<&'a ValueHistory>,
 }
 
 impl<'a> Display for TraceEventFormatter<'a> {
@@ -314,10 +362,19 @@ impl<'a> Display for TraceEventFormatter<'a> {
       }
       TraceEvent::Invocation { ctx, at } => {
         write!(f, "Function invoked at {}:{}:\n", at.file, at.line)?;
-        ctx
-          .events()
-          .iter()
-          .try_for_each(|e| writeln!(f, "  {}", e.fmt_with(self.arena)))
+        if let Some(tail) = ctx.tail() {
+          write!(f, "  Call context (cid={}):\n", ctx.cid)?;
+          for ev in self
+            .arena
+            .collect_forward_with_history(Some(tail), self.history)
+            .into_iter()
+          {
+            writeln!(f, "    {}", ev.fmt_with(self.arena, self.history))?;
+          }
+          Ok(())
+        } else {
+          write!(f, "  Call context (cid={}) has no trace.\n", ctx.cid)
+        }
       }
       TraceEvent::History { event } => {
         write!(f, "Event {}", event)
