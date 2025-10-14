@@ -4,6 +4,7 @@ use crate::engine::{
   constraints::Constraint,
   domain::{AMem, AValue},
   findings::NullDereferenceFinding,
+  history::ValueKind,
   trace::Trace,
 };
 
@@ -60,13 +61,19 @@ impl Trigger for NullTrigger {
         mem.add_finding(Box::new(NullDereferenceFinding::new(
           "Possible null dereference".to_string(),
           trace.clone(),
+          None,
         )));
       }))
-    } else if matches!(self.value, AValue::ANull { .. }) {
+    } else if let AValue::ANull { id } = self.value {
+      let history = memory
+        .history_registry
+        .get_history(ValueKind::Null, id)
+        .cloned();
       Checked::Fired(Box::new(move |mem: &mut AMem| {
         mem.add_finding(Box::new(NullDereferenceFinding::new(
           "Definite null dereference".to_string(),
           trace.clone(),
+          history.clone(),
         )));
       }))
     } else if self.value.is_symbolic() {

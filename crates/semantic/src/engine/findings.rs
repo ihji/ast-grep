@@ -1,4 +1,7 @@
-use crate::engine::trace::{Pos, Trace};
+use crate::engine::{
+  history::ValueHistory,
+  trace::{Pos, Trace},
+};
 use std::fmt::Debug;
 
 #[derive(Debug)]
@@ -16,6 +19,7 @@ pub trait Finding: Debug {
   fn message(&self) -> &str;
   fn location(&self) -> Pos;
   fn trace(&self) -> &Trace;
+  fn history(&self) -> Option<&ValueHistory>;
 }
 
 #[derive(Debug)]
@@ -23,6 +27,7 @@ pub struct NullDereferenceFinding {
   message: String,
   location: Pos,
   trace: Trace,
+  history: Option<ValueHistory>,
 }
 
 impl Finding for NullDereferenceFinding {
@@ -37,10 +42,14 @@ impl Finding for NullDereferenceFinding {
   fn trace(&self) -> &Trace {
     &self.trace
   }
+
+  fn history(&self) -> Option<&ValueHistory> {
+    self.history.as_ref()
+  }
 }
 
 impl NullDereferenceFinding {
-  pub fn new(message: String, trace: Trace) -> Self {
+  pub fn new(message: String, trace: Trace, history: Option<ValueHistory>) -> Self {
     Self {
       message,
       location: trace.current_pos().unwrap_or(Pos {
@@ -48,6 +57,7 @@ impl NullDereferenceFinding {
         line: 0,
       }),
       trace,
+      history,
     }
   }
 }

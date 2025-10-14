@@ -6,7 +6,7 @@ use clap::Parser;
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
-use crate::engine::context::Context;
+use crate::engine::context::SessionCtx;
 use crate::engine::sym_exec::execute;
 use crate::engine::trace::TraceArena;
 use crate::report::reporter::CliReporter;
@@ -51,7 +51,7 @@ pub fn run_deep_scan(arg: DeepScanArg) -> Result<()> {
       println!("CFG for method: {}", cfg.0.name);
       println!("{}", Dot::with_config(&cfg.1.graph, &[Config::EdgeNoLabel]));
     }
-    let context = Context {
+    let context = SessionCtx {
       root: &root,
       source_info: converter.source_info,
       file_path: arg.path.to_str().unwrap_or("unknown").to_string(),

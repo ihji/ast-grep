@@ -1,7 +1,7 @@
 use ast_grep_core::matcher::MatcherExt;
 
 use crate::engine::constraints::Constraint;
-use crate::engine::context::Context;
+use crate::engine::context::SessionCtx;
 use crate::engine::domain::AValue::*;
 use crate::engine::domain::{ALoc, AMem, AValue, SExpr};
 use crate::engine::interval::Interval;
@@ -72,7 +72,7 @@ fn eval_loc(_memory: &AMem, loc: &Value) -> ALoc {
 }
 
 pub fn transfer_stmt(
-  context: &Context,
+  context: &SessionCtx,
   path_explorer: &mut impl PathExplorer,
   stmt: &CfgStatement,
   memory: &mut AMem,
@@ -205,7 +205,7 @@ pub fn transfer_stmt(
 }
 
 pub fn transfer_block(
-  context: &Context,
+  context: &SessionCtx,
   path_explorer: &mut impl PathExplorer,
   block: &BasicBlock,
   memory: &mut AMem,

@@ -1,7 +1,7 @@
 use petgraph::graph::NodeIndex;
 use petgraph::visit::EdgeRef;
 
-use crate::engine::context::Context;
+use crate::engine::context::SessionCtx;
 use crate::engine::domain::AMem;
 use crate::engine::path_explorer::{DumbPathExplorer, PathExplorer};
 use crate::engine::sym_semantics::transfer_block;
@@ -31,7 +31,7 @@ fn get_next_tag(cfg: &CFG, next_id: NodeIndex) -> Option<usize> {
 }
 
 pub fn execute_path(
-  context: &Context,
+  context: &SessionCtx,
   method_sig: &MethodSig,
   cfg: &CFG,
   path_explorer: &mut impl PathExplorer,
@@ -43,7 +43,7 @@ pub fn execute_path(
   while let Some(id) = next_id {
     let current_block = &cfg.graph[id];
     transfer_block(context, path_explorer, current_block, &mut memory);
-    context.reporter.report(&memory.findings);
+    context.reporter.report(context, &memory.findings);
     let edges = cfg.graph.edges(id).collect::<Vec<_>>();
     if path_explorer.is_done() || edges.is_empty() {
       path_explorer.mark_done();
@@ -77,14 +77,11 @@ pub fn execute_path(
       next_id = Some(edges[0].target());
     }
   }
-  println!(
-    "Final memory: {}",
-    memory.display_with_trace(&context.trace_arena)
-  );
+  println!("Final memory: {}", memory.display_with_trace(&context));
   memory
 }
 
-pub fn execute_method(context: &Context, method_sig: &MethodSig, cfg: &CFG) {
+pub fn execute_method(context: &SessionCtx, method_sig: &MethodSig, cfg: &CFG) {
   let mut path_explorer = DumbPathExplorer::new(10);
   loop {
     execute_path(context, method_sig, cfg, &mut path_explorer);
@@ -94,7 +91,7 @@ pub fn execute_method(context: &Context, method_sig: &MethodSig, cfg: &CFG) {
   }
 }
 
-pub fn execute(context: &Context, cfg: &CFGs) {
+pub fn execute(context: &SessionCtx, cfg: &CFGs) {
   for (method_sig, cfg) in &cfg.0 {
     println!("Executing method: {}", method_sig.name);
     execute_method(context, method_sig, cfg);

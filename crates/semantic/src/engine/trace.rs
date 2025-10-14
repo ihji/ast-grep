@@ -1,9 +1,13 @@
 use std::{
+  collections::HashMap,
   fmt::{Display, Formatter},
   sync::RwLock,
 };
 
-use crate::engine::{context::Context, history::HistoryEvent};
+use crate::engine::{
+  context::SessionCtx,
+  history::{HistoryEvent, ValueHistory},
+};
 
 // --------------------------- //
 //       Trace Arena Core      //
@@ -43,10 +47,55 @@ impl TraceArena {
   }
 
   pub fn collect_forward(&self, tail: Option<TraceIdx>) -> Vec<TraceEvent> {
+    self.collect_forward_with_history(tail, None)
+  }
+
+  pub fn collect_forward_with_history(
+    &self,
+    tail: Option<TraceIdx>,
+    history: Option<&ValueHistory>,
+  ) -> Vec<TraceEvent> {
+    let mut history_map: HashMap<TraceIdx, Vec<TraceEvent>> = HashMap::new();
+    let mut none_idx_history: Vec<TraceEvent> = Vec::new();
+    if let Some(history) = history {
+      if let Some(creation) = &history.creation {
+        if let Some(idx) = creation.trace_event_idx {
+          history_map
+            .entry(idx)
+            .or_insert_with(Vec::new)
+            .push(TraceEvent::History {
+              event: creation.clone(),
+            });
+        } else {
+          none_idx_history.push(TraceEvent::History {
+            event: creation.clone(),
+          });
+        }
+      }
+      for event in &history.events {
+        if let Some(idx) = event.trace_event_idx {
+          history_map
+            .entry(idx)
+            .or_insert_with(Vec::new)
+            .push(TraceEvent::History {
+              event: event.clone(),
+            });
+        } else {
+          none_idx_history.push(TraceEvent::History {
+            event: event.clone(),
+          });
+        }
+      }
+    }
     let mut acc = Vec::new();
     let mut cur = tail;
     let r = self.storage.read().expect("trace arena poisoned");
     while let Some(i) = cur {
+      if let Some(history_events) = history_map.get(&i) {
+        let mut reversed_events = history_events.clone();
+        reversed_events.reverse();
+        acc.extend(reversed_events);
+      }
       if let Some(node) = r.get(i as usize) {
         acc.push(node.event.clone());
         cur = node.prev;
@@ -54,6 +103,9 @@ impl TraceArena {
         break;
       }
     }
+    let mut reversed_none_idx_history = none_idx_history.clone();
+    reversed_none_idx_history.reverse();
+    acc.extend(reversed_none_idx_history);
     acc.reverse();
     acc
   }
@@ -71,7 +123,8 @@ pub struct Trace {
 
 pub struct TraceFormatter<'a> {
   trace: &'a Trace,
-  arena: &'a TraceArena,
+  history: Option<&'a ValueHistory>,
+  ctx: &'a SessionCtx<'a>,
 }
 
 impl<'a> Display for TraceFormatter<'a> {
@@ -81,8 +134,13 @@ impl<'a> Display for TraceFormatter<'a> {
     } else {
       writeln!(f, "[trace @ unknown location]")?;
     }
-    for ev in self.arena.collect_forward(self.trace.tail).into_iter() {
-      writeln!(f, "  {}", ev.fmt_with(self.arena))?;
+    for ev in self
+      .ctx
+      .trace_arena
+      .collect_forward_with_history(self.trace.tail, self.history)
+      .into_iter()
+    {
+      writeln!(f, "  {}", ev.fmt_with(&self.ctx.trace_arena))?;
     }
     Ok(())
   }
@@ -104,7 +162,7 @@ impl Trace {
     self.current.clone()
   }
 
-  pub fn update_pos(&mut self, context: &Context, tag: &Option<usize>) {
+  pub fn update_pos(&mut self, context: &SessionCtx, tag: &Option<usize>) {
     let line = tag.and_then(|t| context.get_line(t)).unwrap_or(0);
     self.current = Some(Pos {
       file: context.file_path.clone(),
@@ -116,13 +174,21 @@ impl Trace {
     arena.collect_forward(self.tail)
   }
 
-  pub fn fmt_with<'a>(&'a self, arena: &'a TraceArena) -> TraceFormatter<'a> {
-    TraceFormatter { trace: self, arena }
+  pub fn fmt_with<'a>(
+    &'a self,
+    ctx: &'a SessionCtx<'a>,
+    history: Option<&'a ValueHistory>,
+  ) -> TraceFormatter<'a> {
+    TraceFormatter {
+      trace: self,
+      ctx,
+      history,
+    }
   }
 
   pub fn add_branch(
     &mut self,
-    context: &Context,
+    context: &SessionCtx,
     next_tag: &Option<usize>,
     tag: &Option<usize>,
     taken: bool,
@@ -148,7 +214,7 @@ impl Trace {
     self.tail = Some(idx);
   }
 
-  pub fn add_assume(&mut self, context: &Context, tag: &Option<usize>, condition: String) {
+  pub fn add_assume(&mut self, context: &SessionCtx, tag: &Option<usize>, condition: String) {
     let line = tag.and_then(|t| context.get_line(t)).unwrap_or(0);
     let event = TraceEvent::Assumed {
       condition,

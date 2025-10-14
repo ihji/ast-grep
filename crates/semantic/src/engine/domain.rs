@@ -3,6 +3,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::engine::constraints::Constraints;
+use crate::engine::context::SessionCtx;
 use crate::engine::findings::{Finding, Findings};
 use crate::engine::history::HistoryRegistry;
 use crate::engine::trace::{Trace, TraceArena};
@@ -310,7 +311,7 @@ impl AMem {
     }
   }
 
-  fn fmt_core(&self, f: &mut Formatter<'_>, trace_arena: Option<&TraceArena>) -> fmt::Result {
+  fn fmt_core(&self, f: &mut Formatter<'_>, ctx: Option<&SessionCtx>) -> fmt::Result {
     writeln!(f, "---- AMem State ----")?;
     writeln!(f, "Memory:")?;
     let mut sorted_memory: Vec<_> = self.memory.iter().collect();
@@ -323,10 +324,10 @@ impl AMem {
     writeln!(f, "Constraints: {:?}", self.constraints)?;
     writeln!(f, "History Registry:\n{}", self.history_registry)?;
 
-    match trace_arena {
-      Some(arena) => {
+    match ctx {
+      Some(ctx) => {
         writeln!(f, "Trace:")?;
-        writeln!(f, "{}", self.trace.fmt_with(arena))?;
+        writeln!(f, "{}", self.trace.fmt_with(ctx, None))?;
       }
       None => {
         writeln!(f, "Trace: {:?}", self.trace)?;
@@ -337,8 +338,8 @@ impl AMem {
     writeln!(f, "--------------------")
   }
 
-  pub fn display_with_trace<'a>(&'a self, arena: &'a TraceArena) -> AMemWithTraceDisplay<'a> {
-    AMemWithTraceDisplay { amem: self, arena }
+  pub fn display_with_trace<'a>(&'a self, ctx: &'a SessionCtx<'a>) -> AMemWithTraceDisplay<'a> {
+    AMemWithTraceDisplay { amem: self, ctx }
   }
 
   // TODO: add and check methods for constraints
@@ -432,12 +433,12 @@ impl Display for SExpr {
 
 pub struct AMemWithTraceDisplay<'a> {
   amem: &'a AMem,
-  arena: &'a TraceArena,
+  ctx: &'a SessionCtx<'a>,
 }
 
 impl<'a> Display for AMemWithTraceDisplay<'a> {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    self.amem.fmt_core(f, Some(self.arena))
+    self.amem.fmt_core(f, Some(self.ctx))
   }
 }
 
