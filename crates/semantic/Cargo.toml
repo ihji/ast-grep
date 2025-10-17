@@ -19,7 +19,6 @@ derive-visitor = { version = "0.4.0", features = ["std-types-drive"] }
 
 clap = { version = "4.5.4", features = ["derive"] }
 type-sitter = { version = "0.7.4", default-features = false }
-tree-sitter-go = "0.25.0"
 
 [build-dependencies]
 type-sitter-gen = "0.7.4"
