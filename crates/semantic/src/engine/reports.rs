@@ -3,7 +3,7 @@ use crate::engine::{
   history::ValueHistory,
   trace::{Pos, Trace, TraceEvent, TraceIdx},
 };
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 #[derive(Debug)]
 pub struct Reports {
@@ -45,6 +45,77 @@ impl CodeFlow {
 
   pub fn thread_flows(&self) -> &[ThreadFlow] {
     &self.thread_flows
+  }
+}
+
+impl fmt::Display for CodeFlow {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let thread_count = self.thread_flows.len();
+    if thread_count == 0 {
+      writeln!(f, "Code Flow: no recorded threads")?;
+      return Ok(());
+    }
+
+    writeln!(
+      f,
+      "Code Flow ({} thread{})",
+      thread_count,
+      if thread_count == 1 { "" } else { "s" }
+    )?;
+
+    for (thread_idx, thread) in self.thread_flows.iter().enumerate() {
+      let step_count = thread.locations.len();
+      writeln!(
+        f,
+        "  Thread #{} ({} step{})",
+        thread_idx + 1,
+        step_count,
+        if step_count == 1 { "" } else { "s" }
+      )?;
+
+      if step_count == 0 {
+        writeln!(f, "    No recorded steps.")?;
+      } else {
+        let step_count_digits = step_count.to_string().len();
+        let step_width = if step_count_digits < 2 {
+          2
+        } else {
+          step_count_digits
+        };
+
+        for (step_idx, location) in thread.locations.iter().enumerate() {
+          let nesting_indent = "  ".repeat(location.nesting_level());
+          let indent = format!("    {}", nesting_indent);
+          let step_label = format!("{:>width$}.", step_idx + 1, width = step_width);
+
+          writeln!(f, "{}{} {}", indent, step_label, location.location())?;
+
+          let message_offset = " ".repeat(step_label.len() + 1);
+          let base_message_indent = format!("{}{}", indent, message_offset);
+          let bullet_indent = format!("{}- ", base_message_indent);
+          let continuation_indent = format!("{}  ", base_message_indent);
+          let raw_message = location.message().unwrap_or("").trim();
+
+          if raw_message.is_empty() {
+            writeln!(f, "{}No additional details.", bullet_indent)?;
+          } else {
+            let mut lines = raw_message.lines();
+            if let Some(first_line) = lines.next() {
+              writeln!(f, "{}{}", bullet_indent, first_line)?;
+              for line in lines {
+                writeln!(f, "{}{}", continuation_indent, line)?;
+              }
+            }
+          }
+        }
+      }
+
+      if thread_idx + 1 < thread_count {
+        f.write_str("\n")?;
+      }
+    }
+
+    Ok(())
   }
 }
 
@@ -111,6 +182,21 @@ impl ThreadFlowLocation {
 pub enum FindingTrace {
   Flow(CodeFlow),
   TraceWithHistory(Trace, Option<ValueHistory>),
+}
+
+impl fmt::Display for FindingTrace {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      FindingTrace::Flow(code_flow) => write!(f, "{}", code_flow),
+      FindingTrace::TraceWithHistory(trace, history) => {
+        writeln!(f, "Trace: {:?}", trace)?;
+        if let Some(h) = history {
+          write!(f, "History: {:?}", h)?;
+        }
+        Ok(())
+      }
+    }
+  }
 }
 
 #[derive(Debug)]

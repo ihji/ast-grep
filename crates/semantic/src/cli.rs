@@ -44,7 +44,7 @@ pub fn run_deep_scan(arg: DeepScanArg) -> Result<()> {
           println!("-----------------------------------------");
           println!("Kind: {:?}", finding.kind());
           println!("Location: {:?}", finding.location());
-          println!("Trace: {:#?}", finding.trace());
+          println!("Trace: {}", finding.trace());
         }
       }
     }

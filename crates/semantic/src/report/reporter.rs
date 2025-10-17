@@ -13,7 +13,7 @@ impl Reporter for CliReporter {
       println!("-----------------------------------------");
       println!("Kind: {:?}", finding.kind());
       println!("Location: {:?}", finding.location());
-      println!("Trace: {:?}", finding.trace(),);
+      println!("Trace: {}", finding.trace());
     }
   }
 }
