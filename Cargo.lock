@@ -1677,6 +1677,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
 
 [[package]]
+name = "rustc-stable-hash"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "781442f29170c5c93b7185ad559492601acdc71d5bb0706f5868094f45cfcd08"
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2505,18 +2511,18 @@ dependencies = [
 
 [[package]]
 name = "type-sitter"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e24a6eabf350cc02deaef1779c1b34ead761aca3dd76290d52ddf7eb3f46e8fb"
+checksum = "f8a8b8f2e3b489a067f445e8d7a0515af6b2c144d4dac5396c8839c7c795f164"
 dependencies = [
  "type-sitter-lib",
 ]
 
 [[package]]
 name = "type-sitter-gen"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fe7ce97665e8dd9242c40602c7b51d8c25727eee7e863af8a562784e1d52fab"
+checksum = "d840736825a9c2a6d26743923d3d7e69e00ed712f37c571fc31a833c6d3a53c3"
 dependencies = [
  "cc",
  "check_keyword",
@@ -2530,6 +2536,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
+ "rustc-stable-hash",
  "serde",
  "serde_json",
  "slice-group-by",

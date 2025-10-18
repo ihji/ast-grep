@@ -18,8 +18,8 @@ bitvec = "1"
 derive-visitor = { version = "0.4.0", features = ["std-types-drive"] }
 
 clap = { version = "4.5.4", features = ["derive"] }
-type-sitter = { version = "0.7.4", default-features = false }
+type-sitter = { version = "0.8.0", default-features = false }
 
 [build-dependencies]
-type-sitter-gen = "0.7.4"
+type-sitter-gen = "0.8.0"
 tree-sitter-go = "0.25.0"

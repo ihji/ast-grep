@@ -7,7 +7,7 @@ use crate::engine::domain::{ALoc, AMem, AValue, SExpr};
 use crate::engine::interval::Interval;
 use crate::engine::path_explorer::PathExplorer;
 use crate::engine::triggers::NullTrigger;
-use crate::il::{BasicBlock, CfgStatement, ValueKind};
+use crate::il::{BasicBlock, CfgStatement, Type, ValueKind};
 use crate::il::{BinaryOp, Expr, UnaryOp, Value};
 
 fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
@@ -47,6 +47,18 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
         AValue::top()
       }
     }
+    Expr::DotAccess { base, field } => {
+      let base_loc = match &base.kind {
+        ValueKind::Var { t, .. } if !matches!(t, Type::Pointer(_)) => eval_loc(memory, base),
+        _ => {
+          let base_val = eval(memory, base);
+          let base_loc = base_val.to_aloc();
+          base_loc.unwrap_or_else(|| ALoc::new_unknown())
+        }
+      };
+      let loc = base_loc.add_field(field.clone());
+      memory.read(&loc).cloned().unwrap_or(AValue::top())
+    }
     _ => AValue::top(),
   }
 }
@@ -67,7 +79,7 @@ fn eval(memory: &mut AMem, value: &Value) -> AValue {
 fn eval_loc(_memory: &AMem, loc: &Value) -> ALoc {
   match &loc.kind {
     ValueKind::Var { name, t: _ } => ALoc::new_local(name.clone()),
-    _ => ALoc::new_unknown("".to_string()),
+    _ => ALoc::new_unknown(),
   }
 }
 

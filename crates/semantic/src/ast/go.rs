@@ -1,4 +1,3 @@
-use crate::ast::go_nodes::anon_unions::ArrayType_GenericType_ImplicitLengthArrayType_MapType_QualifiedType_SliceType_StructType_TypeIdentifier as CompLitType;
 use crate::ast::go_nodes::anon_unions::Block_IfStatement;
 use crate::ast::go_nodes::anon_unions::DefaultCase_ExpressionCase;
 use crate::ast::go_nodes::anon_unions::DefaultCase_TypeCase;

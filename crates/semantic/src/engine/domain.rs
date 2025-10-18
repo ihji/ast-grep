@@ -133,7 +133,9 @@ impl ALoc {
       path: vec![],
     }
   }
-  pub fn new_unknown(id: String) -> Self {
+  pub fn new_unknown() -> Self {
+    static UNKNOWN_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
+    let id = UNKNOWN_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
     ALoc {
       kind: ALocKind::AUnknown(id),
       path: vec![],
@@ -145,6 +147,10 @@ impl ALoc {
       path: vec![],
     }
   }
+  pub fn add_field(mut self, field: String) -> Self {
+    self.path.push(Seg::Field(field));
+    self
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -153,8 +159,8 @@ pub enum ALocKind {
   AGlobal(String),
   AParam(String),
   AThis,
-  AHeap(String),    // site_id
-  AUnknown(String), // id
+  AHeap(String), // site_id
+  AUnknown(u32), // id
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
