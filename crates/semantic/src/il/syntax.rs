@@ -30,13 +30,15 @@ pub enum Type {
 #[derive(Debug, Clone, Drive, PartialEq)]
 pub struct Value {
   pub kind: ValueKind,
+  pub type_declared: Option<Type>,
+  pub type_inferred: Option<Type>,
   pub tag: Option<usize>,
 }
 
 #[derive(Debug, Clone, Drive, PartialEq)]
 pub enum ValueKind {
   NullLit,
-  Var { name: String, t: Type },
+  Ident(String),
   IntLit(i32),
   LongLit(i64),
   FloatLit(f32),
@@ -111,6 +113,12 @@ pub enum Expr {
     value: Box<Value>,
     t: Type,
   },
+}
+
+impl Value {
+  pub fn get_type(&self) -> Option<&Type> {
+    self.type_inferred.as_ref().or(self.type_declared.as_ref())
+  }
 }
 
 impl ValueKind {
@@ -305,7 +313,7 @@ impl fmt::Display for ValueKind {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       ValueKind::NullLit => write!(f, "null"),
-      ValueKind::Var { name, .. } => write!(f, "{}", name),
+      ValueKind::Ident(name) => write!(f, "{}", name),
       ValueKind::IntLit(i) => write!(f, "{}", i),
       ValueKind::LongLit(l) => write!(f, "{}", l),
       ValueKind::FloatLit(fl) => write!(f, "{}", fl),

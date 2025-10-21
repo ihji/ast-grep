@@ -329,6 +329,8 @@ impl CFG {
             stmts: vec![CfgStatement::Assume {
               value: Value {
                 kind: neg_cond,
+                type_declared: condition.type_declared.clone(),
+                type_inferred: condition.type_inferred.clone(),
                 tag: condition.tag,
               },
               tag: *tag,
@@ -374,6 +376,8 @@ impl CFG {
           stmts: vec![CfgStatement::Assume {
             value: condition.result.clone().unwrap_or(Value {
               kind: ValueKind::IntLit(1),
+              type_declared: None,
+              type_inferred: None,
               tag: None,
             }),
             tag: *tag,
@@ -416,6 +420,8 @@ impl CFG {
           stmts: vec![CfgStatement::Assume {
             value: condition.result.clone().unwrap_or(Value {
               kind: ValueKind::IntLit(1),
+              type_declared: None,
+              type_inferred: None,
               tag: None,
             }),
             tag: None,
@@ -482,6 +488,8 @@ impl CFG {
             Self::convert_statements(graph, &case_value.statements);
           let case_value = case_value.result.clone().unwrap_or(Value {
             kind: ValueKind::IntLit(1),
+            type_declared: None,
+            type_inferred: None,
             tag: None,
           });
           let true_cond_value = if let Some(ref v) = value.result {
@@ -491,6 +499,8 @@ impl CFG {
                 right: Box::new(case_value.clone()),
                 op: crate::il::BinaryOp::Eq,
               }),
+              type_declared: None,
+              type_inferred: Some(Type::Bool),
               tag: case_value.tag,
             }
           } else {
@@ -503,6 +513,8 @@ impl CFG {
                 right: Box::new(case_value.clone()),
                 op: crate::il::BinaryOp::Neq,
               }),
+              type_declared: None,
+              type_inferred: Some(Type::Bool),
               tag: case_value.tag,
             }
           } else {

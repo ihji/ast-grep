@@ -19,21 +19,27 @@ fn test_simple_program() {
   // }
 
   let x = Value {
-    kind: ValueKind::Var {
-      name: "x".to_string(),
-      t: Type::Int,
-    },
+    kind: ValueKind::Ident("x".to_string()),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
   let y = Value {
-    kind: ValueKind::Var {
-      name: "y".to_string(),
-      t: Type::Int,
-    },
+    kind: ValueKind::Ident("y".to_string()),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
   let forty_two = Value {
     kind: ValueKind::IntLit(42),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
+    tag: None,
+  };
+  let forty_two = Value {
+    kind: ValueKind::IntLit(42),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
 
@@ -46,10 +52,9 @@ fn test_simple_program() {
   program.add_statement(Statement::Invoke {
     kind: InvokeKind::Static,
     callee: Value {
-      kind: ValueKind::Var {
-        name: "foo".to_string(),
-        t: Type::Int,
-      },
+      kind: ValueKind::Ident("foo".to_string()),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     },
     args: vec![x.clone()],
@@ -87,34 +92,38 @@ fn test_function_call() {
   // x = foo(bar(42))
 
   let x = Value {
-    kind: ValueKind::Var {
-      name: "x".to_string(),
-      t: Type::Int,
-    },
+    kind: ValueKind::Ident("x".to_string()),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
 
   program.add_statement(Statement::Invoke {
     kind: InvokeKind::Static,
     callee: Value {
-      kind: ValueKind::Var {
-        name: "foo".to_string(),
-        t: Type::Int,
-      },
+      kind: ValueKind::Ident("foo".to_string()),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     },
     args: vec![Value {
       kind: ValueKind::Exp(Expr::BinOp {
         left: Box::new(Value {
           kind: ValueKind::Exp(Expr::New { t: Type::Int }),
+          type_declared: Some(Type::Int),
+          type_inferred: None,
           tag: None,
         }),
         right: Box::new(Value {
           kind: ValueKind::Exp(Expr::New { t: Type::Int }),
+          type_declared: Some(Type::Int),
+          type_inferred: None,
           tag: None,
         }),
         op: BinaryOp::Add,
       }),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     }],
     ret_type: Type::Int,
@@ -182,16 +191,17 @@ fn test_all_types() {
   let mut expected_lines = Vec::new();
   for (i, (t, _)) in types.iter().enumerate() {
     let var = Value {
-      kind: ValueKind::Var {
-        name: "x".to_string(),
-        t: t.clone(),
-      },
+      kind: ValueKind::Ident("x".to_string()),
+      type_declared: Some(t.clone()),
+      type_inferred: None,
       tag: None,
     };
     program.add_statement(Statement::Assign {
       left: var.clone(),
       right: Value {
         kind: ValueKind::NullLit,
+        type_declared: None,
+        type_inferred: None,
         tag: None,
       },
       tag: None,
@@ -232,10 +242,9 @@ fn test_all_binary_ops() {
 
   for (op, _) in ops {
     let x = Value {
-      kind: ValueKind::Var {
-        name: "x".to_string(),
-        t: Type::Int,
-      },
+      kind: ValueKind::Ident("x".to_string()),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     };
     program.add_statement(Statement::Assign {
@@ -244,14 +253,20 @@ fn test_all_binary_ops() {
         kind: ValueKind::Exp(Expr::BinOp {
           left: Box::new(Value {
             kind: ValueKind::Exp(Expr::New { t: Type::Int }),
+            type_declared: Some(Type::Int),
+            type_inferred: None,
             tag: None,
           }),
           right: Box::new(Value {
             kind: ValueKind::Exp(Expr::New { t: Type::Int }),
+            type_declared: Some(Type::Int),
+            type_inferred: None,
             tag: None,
           }),
           op: op.clone(),
         }),
+        type_declared: Some(Type::Int),
+        type_inferred: None,
         tag: None,
       },
       tag: None,
@@ -286,10 +301,9 @@ fn test_unary_ops() {
 
   for (op, _) in ops {
     let x = Value {
-      kind: ValueKind::Var {
-        name: "x".to_string(),
-        t: Type::Int,
-      },
+      kind: ValueKind::Ident("x".to_string()),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     };
     program.add_statement(Statement::Assign {
@@ -298,10 +312,14 @@ fn test_unary_ops() {
         kind: ValueKind::Exp(Expr::UnOp {
           value: Box::new(Value {
             kind: ValueKind::Exp(Expr::New { t: Type::Int }),
+            type_declared: Some(Type::Int),
+            type_inferred: None,
             tag: None,
           }),
           op: op.clone(),
         }),
+        type_declared: Some(Type::Int),
+        type_inferred: None,
         tag: None,
       },
       tag: None,
@@ -322,6 +340,8 @@ fn test_all_value_types() {
     (
       Value {
         kind: ValueKind::NullLit,
+        type_declared: None,
+        type_inferred: None,
         tag: None,
       },
       "null",
@@ -329,6 +349,8 @@ fn test_all_value_types() {
     (
       Value {
         kind: ValueKind::IntLit(42),
+        type_declared: Some(Type::Int),
+        type_inferred: None,
         tag: None,
       },
       "42",
@@ -336,6 +358,8 @@ fn test_all_value_types() {
     (
       Value {
         kind: ValueKind::LongLit(42),
+        type_declared: Some(Type::Long),
+        type_inferred: None,
         tag: None,
       },
       "42L",
@@ -343,6 +367,8 @@ fn test_all_value_types() {
     (
       Value {
         kind: ValueKind::FloatLit(42.0),
+        type_declared: Some(Type::Float),
+        type_inferred: None,
         tag: None,
       },
       "42f",
@@ -350,6 +376,8 @@ fn test_all_value_types() {
     (
       Value {
         kind: ValueKind::DoubleLit(42.0),
+        type_declared: Some(Type::Double),
+        type_inferred: None,
         tag: None,
       },
       "42",
@@ -357,6 +385,11 @@ fn test_all_value_types() {
     (
       Value {
         kind: ValueKind::StringLit("test".to_string()),
+        type_declared: Some(Type::Named {
+          name: "String".to_string(),
+          generics: vec![],
+        }),
+        type_inferred: None,
         tag: None,
       },
       "\"test\"",
@@ -367,6 +400,8 @@ fn test_all_value_types() {
           name: "Test".to_string(),
           generics: vec![],
         }),
+        type_declared: None,
+        type_inferred: None,
         tag: None,
       },
       "Test.type",
@@ -375,10 +410,9 @@ fn test_all_value_types() {
 
   for (v, _) in values {
     let x = Value {
-      kind: ValueKind::Var {
-        name: "x".to_string(),
-        t: Type::Int,
-      },
+      kind: ValueKind::Ident("x".to_string()),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     };
     program.add_statement(Statement::Assign {
@@ -404,13 +438,12 @@ fn test_all_invoke_kinds() {
 
   // Test all invoke kinds
   let base = Value {
-    kind: ValueKind::Var {
-      name: "obj".to_string(),
-      t: Type::Named {
-        name: "Test".to_string(),
-        generics: vec![],
-      },
-    },
+    kind: ValueKind::Ident("obj".to_string()),
+    type_declared: Some(Type::Named {
+      name: "Test".to_string(),
+      generics: vec![],
+    }),
+    type_inferred: None,
     tag: None,
   };
 
@@ -432,23 +465,23 @@ fn test_all_invoke_kinds() {
 
   for (kind, _) in kinds {
     let x = Value {
-      kind: ValueKind::Var {
-        name: "x".to_string(),
-        t: Type::Int,
-      },
+      kind: ValueKind::Ident("x".to_string()),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     };
     program.add_statement(Statement::Invoke {
       kind: kind.clone(),
       callee: Value {
-        kind: ValueKind::Var {
-          name: "test".to_string(),
-          t: Type::Int,
-        },
+        kind: ValueKind::Ident("test".to_string()),
+        type_declared: Some(Type::Int),
+        type_inferred: None,
         tag: None,
       },
       args: vec![Value {
         kind: ValueKind::IntLit(42),
+        type_declared: Some(Type::Int),
+        type_inferred: None,
         tag: None,
       }],
       ret_type: Type::Int,
@@ -493,6 +526,8 @@ fn test_all_define_kinds() {
     name: "field".to_string(),
     init: Some(Value {
       kind: ValueKind::IntLit(42),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     }),
     t: Some(Type::Int),
@@ -530,17 +565,15 @@ fn test_nested_if_statements() {
   // }
 
   let x = Value {
-    kind: ValueKind::Var {
-      name: "x".to_string(),
-      t: Type::Int,
-    },
+    kind: ValueKind::Ident("x".to_string()),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
   let y = Value {
-    kind: ValueKind::Var {
-      name: "y".to_string(),
-      t: Type::Int,
-    },
+    kind: ValueKind::Ident("y".to_string()),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
 
@@ -551,6 +584,8 @@ fn test_nested_if_statements() {
       then_stmts: vec![Statement::Return {
         value: Some(Value {
           kind: ValueKind::IntLit(1),
+          type_declared: Some(Type::Int),
+          type_inferred: None,
           tag: None,
         }),
         tag: None,
@@ -558,6 +593,8 @@ fn test_nested_if_statements() {
       else_stmts: vec![Statement::Return {
         value: Some(Value {
           kind: ValueKind::IntLit(2),
+          type_declared: Some(Type::Int),
+          type_inferred: None,
           tag: None,
         }),
         tag: None,
@@ -567,6 +604,8 @@ fn test_nested_if_statements() {
     else_stmts: vec![Statement::Return {
       value: Some(Value {
         kind: ValueKind::IntLit(3),
+        type_declared: Some(Type::Int),
+        type_inferred: None,
         tag: None,
       }),
       tag: None,
@@ -597,44 +636,39 @@ fn test_deref_and_dot_access() {
   // z = *obj.field
 
   let x = Value {
-    kind: ValueKind::Var {
-      name: "x".to_string(),
-      t: Type::Int,
-    },
+    kind: ValueKind::Ident("x".to_string()),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
   let y = Value {
-    kind: ValueKind::Var {
-      name: "y".to_string(),
-      t: Type::Int,
-    },
+    kind: ValueKind::Ident("y".to_string()),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
   let z = Value {
-    kind: ValueKind::Var {
-      name: "z".to_string(),
-      t: Type::Int,
-    },
+    kind: ValueKind::Ident("z".to_string()),
+    type_declared: Some(Type::Int),
+    type_inferred: None,
     tag: None,
   };
   let ptr = Value {
-    kind: ValueKind::Var {
-      name: "ptr".to_string(),
-      t: Type::Named {
-        name: "int*".to_string(),
-        generics: vec![],
-      },
-    },
+    kind: ValueKind::Ident("ptr".to_string()),
+    type_declared: Some(Type::Named {
+      name: "int*".to_string(),
+      generics: vec![],
+    }),
+    type_inferred: None,
     tag: None,
   };
   let obj = Value {
-    kind: ValueKind::Var {
-      name: "obj".to_string(),
-      t: Type::Named {
-        name: "Test".to_string(),
-        generics: vec![],
-      },
-    },
+    kind: ValueKind::Ident("obj".to_string()),
+    type_declared: Some(Type::Named {
+      name: "Test".to_string(),
+      generics: vec![],
+    }),
+    type_inferred: None,
     tag: None,
   };
 
@@ -645,6 +679,8 @@ fn test_deref_and_dot_access() {
       kind: ValueKind::Exp(Expr::Deref {
         value: Box::new(ptr.clone()),
       }),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     },
     tag: None,
@@ -658,6 +694,8 @@ fn test_deref_and_dot_access() {
         base: Box::new(obj.clone()),
         field: "field".to_string(),
       }),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     },
     tag: None,
@@ -673,9 +711,13 @@ fn test_deref_and_dot_access() {
             base: Box::new(obj),
             field: "field".to_string(),
           }),
+          type_declared: Some(Type::Int),
+          type_inferred: None,
           tag: None,
         }),
       }),
+      type_declared: Some(Type::Int),
+      type_inferred: None,
       tag: None,
     },
     tag: None,

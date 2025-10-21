@@ -48,8 +48,8 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
       }
     }
     Expr::DotAccess { base, field } => {
-      let base_loc = match &base.kind {
-        ValueKind::Var { t, .. } if !matches!(t, Type::Pointer(_)) => eval_loc(memory, base),
+      let base_loc = match base.get_type() {
+        Some(Type::Pointer(_)) => eval_loc(memory, base),
         _ => {
           let base_val = eval(memory, base);
           let base_loc = base_val.to_aloc();
@@ -68,7 +68,7 @@ fn eval(memory: &mut AMem, value: &Value) -> AValue {
     ValueKind::IntLit(x) => AValue::AInt((*x).into()),
     ValueKind::NullLit => AValue::null(),
     ValueKind::Exp(expr) => eval_expr(memory, expr),
-    ValueKind::Var { .. } => {
+    ValueKind::Ident(_) => {
       let loc = eval_loc(memory, value);
       memory.read(&loc).unwrap_or(&AValue::top()).clone()
     }
@@ -78,7 +78,7 @@ fn eval(memory: &mut AMem, value: &Value) -> AValue {
 
 fn eval_loc(_memory: &AMem, loc: &Value) -> ALoc {
   match &loc.kind {
-    ValueKind::Var { name, t: _ } => ALoc::new_local(name.clone()),
+    ValueKind::Ident(name) => ALoc::new_local(name.clone()),
     _ => ALoc::new_unknown(),
   }
 }

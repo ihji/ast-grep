@@ -146,8 +146,12 @@ impl PrettyPrinter {
   pub fn print_value(value: &Value) -> String {
     match &value.kind {
       ValueKind::NullLit => "null".to_string(),
-      ValueKind::Var { name, t } => {
-        format!("{}: {}", name, Self::print_type(t))
+      ValueKind::Ident(name) => {
+        let type_str = match &value.type_declared {
+          Some(t) => format!(": {}", Self::print_type(t)),
+          None => String::new(),
+        };
+        format!("{}{}", name, type_str)
       }
       ValueKind::IntLit(n) => n.to_string(),
       ValueKind::LongLit(n) => format!("{}L", n),
