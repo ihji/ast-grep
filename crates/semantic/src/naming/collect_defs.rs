@@ -1,5 +1,5 @@
 use crate::{
-  il::{DefineKind, Program, Statement},
+  il::{DefineKind, MethodSig, Program, Statement},
   naming::{
     naming_context::{DeclKind, Namespace, ScopeKind, Visibility},
     NamingContext, ScopeId,
@@ -8,7 +8,7 @@ use crate::{
 
 pub fn collect_pgm(ctx: &mut NamingContext, pgm: &mut Program) {
   ctx.clear_scope_stack();
-  ctx.enter_scope(ScopeKind::File);
+  ctx.enter_scope(ScopeKind::File, pgm.path.to_str());
   for stmt in &mut pgm.statements {
     collect_stmt(ctx, stmt);
   }
@@ -19,8 +19,9 @@ fn collect_stmts_in_scope(
   ctx: &mut NamingContext,
   stmts: &mut Vec<Statement>,
   scope_kind: ScopeKind,
+  name: Option<&str>,
 ) -> ScopeId {
-  let new_scope_id = ctx.enter_scope(scope_kind);
+  let new_scope_id = ctx.enter_scope(scope_kind, name);
   for stmt in stmts {
     collect_stmt(ctx, stmt);
   }
@@ -35,15 +36,29 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
       scope_id,
       tag,
     } => match kind {
-      DefineKind::Class { body, .. } => {
-        *scope_id = Some(collect_stmts_in_scope(ctx, body, ScopeKind::Module));
+      DefineKind::Class { name, body, .. } => {
+        *scope_id = Some(collect_stmts_in_scope(
+          ctx,
+          body,
+          ScopeKind::Module,
+          Some(name),
+        ));
       }
-      DefineKind::Method { body, .. } => {
-        *scope_id = Some(collect_stmts_in_scope(ctx, body, ScopeKind::Function));
+      DefineKind::Method {
+        sig: MethodSig { name, .. },
+        body,
+        ..
+      } => {
+        *scope_id = Some(collect_stmts_in_scope(
+          ctx,
+          body,
+          ScopeKind::Function,
+          Some(name),
+        ));
       }
       DefineKind::Package(_) => {}
       DefineKind::Constructor { body, .. } => {
-        *scope_id = Some(collect_stmts_in_scope(ctx, body, ScopeKind::Function));
+        *scope_id = Some(collect_stmts_in_scope(ctx, body, ScopeKind::Function, None));
       }
       DefineKind::Interface { .. } => {}
       DefineKind::Field { .. } => {}

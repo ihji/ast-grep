@@ -65,6 +65,7 @@ pub enum ScopeKind {
 #[derive(Debug)]
 struct Scope {
   id: ScopeId,
+  name: Option<StrSymbol>,
   kind: ScopeKind,
   parent: Option<ScopeId>,
   children: Vec<ScopeId>,
@@ -85,13 +86,14 @@ impl NamingContext {
     self.scope_stack.clear();
   }
 
-  pub fn enter_scope(&mut self, kind: ScopeKind) -> ScopeId {
+  pub fn enter_scope(&mut self, kind: ScopeKind, name: Option<&str>) -> ScopeId {
     let parent = self.scope_stack.last().cloned();
     let scope_id = self.scopes.len() as ScopeId;
     let scope = Scope {
       id: scope_id,
       kind,
       parent,
+      name: name.map(|n| self.interner.get_or_intern(n)),
       children: Vec::new(),
       symbols: HashMap::new(),
     };
@@ -146,19 +148,23 @@ impl Debug for NamingContext {
     writeln!(f, "NamingContext {{")?;
     writeln!(f, "  Scopes:")?;
     for scope in &self.scopes {
+      let scope_name = scope
+        .name
+        .and_then(|sym| self.interner.resolve(sym))
+        .unwrap_or("<unnamed>");
       writeln!(
         f,
-        "    Scope ID: {}, Kind: {:?}, Parent: {:?}, Children: {:?}",
-        scope.id, scope.kind, scope.parent, scope.children
+        "    Scope ID: {}, Kind: {:?}, Name: {:?}, Parent: {:?}, Children: {:?}",
+        scope.id, scope.kind, scope_name, scope.parent, scope.children
       )?;
       for ((name_sym, _ns), symbol_ids) in &scope.symbols {
-        let name = self.interner.resolve(*name_sym).unwrap();
+        let sym_name = self.interner.resolve(*name_sym).unwrap();
         for symbol_id in symbol_ids {
           let symbol = &self.symbols[*symbol_id as usize];
           writeln!(
             f,
             "      Symbol ID: {}, Name: {}, Namespace: {:?}, Kind: {:?}, Visibility: {:?}, Tag: {:?}",
-            symbol.id, name, symbol.ns, symbol.kind, symbol.visibility, symbol.tag
+            symbol.id, sym_name, symbol.ns, symbol.kind, symbol.visibility, symbol.tag
           )?;
         }
       }

@@ -595,7 +595,7 @@ impl CFG {
         (switch_idx, Some(exit_idx))
       }
       _ => {
-        println!("Unhandled statement type in CFG conversion: {:?}", stmt);
+        println!("Unhandled statement type in CFG conversion: {:#?}", stmt);
         // Handle other statement types similarly
         let block = BasicBlock { stmts: vec![] };
         let idx = graph.add_node(block);

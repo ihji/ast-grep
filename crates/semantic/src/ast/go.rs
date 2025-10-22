@@ -1242,10 +1242,26 @@ impl<'src> GoConverter<'src> {
             left_values
               .into_iter()
               .zip(right_values)
-              .map(|(left, right)| il::Statement::Assign {
-                left,
-                right,
-                tag: Some(tag),
+              .map(|(left, right)| {
+                let implicit_type = right.extra.type_declared.clone();
+                il::Statement::Define {
+                  kind: il::DefineKind::Var {
+                    name: match left.kind {
+                      il::ValueKind::Ident(name) => name,
+                      _ => {
+                        eprintln!(
+                          "Expected Ident on left side of short var declaration, got: {:?}",
+                          left
+                        );
+                        "_".to_string()
+                      }
+                    },
+                    init: Some(right),
+                    t: implicit_type,
+                  },
+                  scope_id: None,
+                  tag: Some(tag),
+                }
               })
               .collect::<Vec<_>>(),
           ]
