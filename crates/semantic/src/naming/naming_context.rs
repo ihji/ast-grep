@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use string_interner::symbol::DefaultSymbol as StrSymbol;
 use string_interner::DefaultStringInterner;
 
+#[derive(Debug)]
 pub struct NamingContext {
   interner: DefaultStringInterner,
   scopes: Vec<Scope>,
@@ -21,6 +22,7 @@ pub enum Namespace {
   Macro,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
   Public,
   Module,
@@ -28,6 +30,7 @@ pub enum Visibility {
   Private,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeclKind {
   Var,
   Function,
@@ -39,6 +42,7 @@ pub enum DeclKind {
   Package,
 }
 
+#[derive(Debug)]
 struct Symbol {
   id: SymbolId,
   name: StrSymbol,
@@ -49,6 +53,7 @@ struct Symbol {
   tag: Option<usize>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopeKind {
   File,
   Package,
@@ -57,6 +62,7 @@ pub enum ScopeKind {
   Block,
 }
 
+#[derive(Debug)]
 struct Scope {
   id: ScopeId,
   kind: ScopeKind,
@@ -66,7 +72,7 @@ struct Scope {
 }
 
 impl NamingContext {
-  fn new() -> NamingContext {
+  pub fn new() -> NamingContext {
     NamingContext {
       interner: DefaultStringInterner::new(),
       scopes: Vec::new(),

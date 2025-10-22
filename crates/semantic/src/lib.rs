@@ -7,7 +7,10 @@ pub mod report;
 
 use std::path::PathBuf;
 
-use crate::engine::{reports::Reports, sym_exec::execute};
+use crate::{
+  engine::{reports::Reports, sym_exec::execute},
+  naming::NamingContext,
+};
 use ast_grep_core::AstGrep;
 use ast_grep_language::SupportLang;
 pub use cli::{run_deep_scan, DeepScanArg};
@@ -35,6 +38,8 @@ pub fn analyze_source(
         .unwrap_or_else(|| "unknown.go".to_string()),
     ));
     converter.convert(&root);
+    let mut naming_context = NamingContext::new();
+    naming::collect_pgm(&mut naming_context, &mut converter.program);
     println!("IL: {}", &converter.program);
     let mut cfgs = CFGs::new();
     cfgs.insert(converter.program);

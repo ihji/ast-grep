@@ -230,6 +230,11 @@ pub enum DefineKind {
     init: Option<Value>,
     t: Option<Type>,
   },
+  Var {
+    name: String,
+    init: Option<Value>,
+    t: Option<Type>,
+  },
   Constructor {
     sig: MethodSig,
     body: Vec<Statement>,
@@ -292,6 +297,7 @@ pub enum Statement {
   Define {
     kind: DefineKind,
     scope_id: Option<ScopeId>,
+    tag: Option<usize>,
   },
   Break,
   Continue,

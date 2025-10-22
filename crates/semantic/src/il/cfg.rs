@@ -257,6 +257,29 @@ impl CFG {
         let idx = graph.add_node(block);
         (idx, Some(idx)) // should we return None here?
       }
+      Statement::Define {
+        kind: DefineKind::Var { name, init, t },
+        tag,
+        ..
+      } => {
+        let block = BasicBlock {
+          stmts: vec![CfgStatement::Assign {
+            left: Value {
+              kind: ValueKind::Ident(name.clone()),
+              extra: ValueExtra::new(t.clone(), None),
+              tag: None,
+            },
+            right: init.clone().unwrap_or_else(|| Value {
+              kind: ValueKind::NullLit,
+              extra: ValueExtra::new(t.clone(), None),
+              tag: None,
+            }),
+            tag: *tag,
+          }],
+        };
+        let idx = graph.add_node(block);
+        (idx, Some(idx))
+      }
       Statement::Assign { left, right, tag } => {
         let block = BasicBlock {
           stmts: vec![CfgStatement::Assign {

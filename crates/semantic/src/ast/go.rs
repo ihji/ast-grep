@@ -204,9 +204,11 @@ impl<'src> GoConverter<'src> {
               .map_err(|e| anyhow!("Error converting package name: {:?}", e))?
               .utf8_text(root.source().as_bytes())?
               .to_string();
+            let tag = self.source_info.register(*pc.raw());
             Ok(vec![il::Statement::Define {
               kind: il::DefineKind::Package(name),
               scope_id: None,
+              tag: Some(tag),
             }])
           }
           TopLevel::MethodDeclaration(md) => {
@@ -264,9 +266,11 @@ impl<'src> GoConverter<'src> {
               body: method_stmts,
               ret_type: ret_type,
             };
+            let tag = self.source_info.register(*md.raw());
             Ok(vec![il::Statement::Define {
               kind: method_decl,
               scope_id: None,
+              tag: Some(tag),
             }])
           }
           TopLevel::FunctionDeclaration(fd) => {
@@ -319,9 +323,11 @@ impl<'src> GoConverter<'src> {
               body: function_stmts,
               ret_type: ret_type,
             };
+            let tag = self.source_info.register(*fd.raw());
             Ok(vec![il::Statement::Define {
               kind: method_decl,
               scope_id: None,
+              tag: Some(tag),
             }])
           }
           _ => {
@@ -732,13 +738,13 @@ impl<'src> GoConverter<'src> {
               names
                 .into_iter()
                 .zip(values)
-                .map(|(name, value)| il::Statement::Assign {
-                  left: il::Value {
-                    kind: il::ValueKind::Ident(name),
-                    extra: ValueExtra::new(Some(type_.clone()), None),
-                    tag: None,
+                .map(|(name, value)| il::Statement::Define {
+                  kind: il::DefineKind::Var {
+                    name: name,
+                    init: Some(value),
+                    t: Some(type_.clone()),
                   },
-                  right: value,
+                  scope_id: None,
                   tag: Some(tag),
                 })
                 .collect::<Vec<_>>(),
@@ -750,18 +756,47 @@ impl<'src> GoConverter<'src> {
           Ok(
             names
               .iter()
-              .map(|name| il::Statement::Assign {
-                left: il::Value {
-                  kind: il::ValueKind::Ident(name.clone()),
-                  extra: ValueExtra::new(Some(type_.clone()), None),
-                  tag: None,
-                },
-                right: il::Value {
-                  kind: il::ValueKind::NullLit,
-                  extra: ValueExtra::new(None, None),
-                  tag: None,
-                },
-                tag: Some(tag),
+              .map(|name| {
+                let init = match type_ {
+                  il::Type::Int
+                  | il::Type::UInt
+                  | il::Type::Byte
+                  | il::Type::UByte
+                  | il::Type::Short
+                  | il::Type::UShort
+                  | il::Type::Long
+                  | il::Type::ULong
+                  | il::Type::Float
+                  | il::Type::Double => il::Value {
+                    kind: il::ValueKind::IntLit(0),
+                    extra: ValueExtra::new(Some(type_.clone()), None),
+                    tag: None,
+                  },
+                  il::Type::Bool => il::Value {
+                    kind: il::ValueKind::IntLit(0),
+                    extra: ValueExtra::new(Some(type_.clone()), None),
+                    tag: None,
+                  },
+                  il::Type::String => il::Value {
+                    kind: il::ValueKind::StringLit("".to_string()),
+                    extra: ValueExtra::new(Some(type_.clone()), None),
+                    tag: None,
+                  },
+                  _ => il::Value {
+                    kind: il::ValueKind::NullLit,
+                    extra: ValueExtra::new(Some(type_.clone()), None),
+                    tag: None,
+                  },
+                };
+                il::Statement::Define {
+                  kind: il::DefineKind::Var {
+                    name: name.clone(),
+                    init: Some(init),
+                    t: Some(type_.clone()),
+                  },
+                  scope_id: None,
+                  tag: Some(tag),
+                }
               })
               .collect::<Vec<_>>(),
           )
@@ -1724,6 +1759,7 @@ impl<'src> GoConverter<'src> {
           vec![il::Statement::Define {
             kind: method_decl,
             scope_id: None,
+            tag: Some(tag),
           }],
         ))
       }

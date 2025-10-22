@@ -138,6 +138,7 @@ fn test_define_statements() {
       body: vec![],
     },
     scope_id: None,
+    tag: None,
   });
 
   // Test method definition
@@ -154,6 +155,7 @@ fn test_define_statements() {
       ret_type: vec![Type::Int],
     },
     scope_id: None,
+    tag: None,
   });
 
   let expected = r#"0: define class Test extends Base implements I1, I2
@@ -490,6 +492,7 @@ fn test_all_define_kinds() {
       body: vec![],
     },
     scope_id: None,
+    tag: None,
   });
 
   program.add_statement(Statement::Define {
@@ -498,6 +501,7 @@ fn test_all_define_kinds() {
       extends: Some("I0".to_string()),
     },
     scope_id: None,
+    tag: None,
   });
 
   program.add_statement(Statement::Define {
@@ -510,6 +514,7 @@ fn test_all_define_kinds() {
       ret_type: vec![Type::Int],
     },
     scope_id: None,
+    tag: None,
   });
 
   program.add_statement(Statement::Define {
@@ -523,6 +528,7 @@ fn test_all_define_kinds() {
       t: Some(Type::Int),
     },
     scope_id: None,
+    tag: None,
   });
 
   program.add_statement(Statement::Define {
@@ -534,6 +540,7 @@ fn test_all_define_kinds() {
       body: vec![],
     },
     scope_id: None,
+    tag: None,
   });
   let expected = r#"0: define class Test extends Base implements I1
 1: define interface I1 extends I0

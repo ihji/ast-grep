@@ -271,6 +271,17 @@ impl PrettyPrinter {
           .unwrap_or_default();
         format!("field {}{}{}", name, t_str, init_str)
       }
+      DefineKind::Var { name, init, t } => {
+        let init_str = init
+          .as_ref()
+          .map(|v| format!(" = {}", Self::print_value(v)))
+          .unwrap_or_default();
+        let t_str = t
+          .as_ref()
+          .map(|t| format!(": {}", Self::print_type(t)))
+          .unwrap_or_default();
+        format!("var {}{}{}", name, t_str, init_str)
+      }
       DefineKind::Constructor { sig, body } => {
         let body_str = if body.is_empty() {
           String::new()
