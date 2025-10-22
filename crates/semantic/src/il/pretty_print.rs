@@ -444,7 +444,7 @@ impl PrettyPrinter {
         None => format!("{}{}: return", indent_str, id),
       },
       Statement::Goto { target } => format!("{}{}: goto {}", indent_str, id, target),
-      Statement::Define(kind) => {
+      Statement::Define { kind, .. } => {
         format!(
           "{}{}: define {}",
           indent_str,

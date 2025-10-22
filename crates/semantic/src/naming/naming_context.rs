@@ -3,32 +3,32 @@ use std::collections::HashMap;
 use string_interner::symbol::DefaultSymbol as StrSymbol;
 use string_interner::DefaultStringInterner;
 
-struct NamingContext {
+pub struct NamingContext {
   interner: DefaultStringInterner,
   scopes: Vec<Scope>,
   symbols: Vec<Symbol>,
   scope_stack: Vec<ScopeId>,
 }
 
-type ScopeId = u32;
-type SymbolId = u32;
+pub type ScopeId = u32;
+pub type SymbolId = u32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Namespace {
+pub enum Namespace {
   Type,
   Value,
   Method,
   Macro,
 }
 
-enum Visibility {
+pub enum Visibility {
   Public,
   Module,
   Package,
   Private,
 }
 
-enum DeclKind {
+pub enum DeclKind {
   Var,
   Function,
   Struct,
@@ -49,7 +49,7 @@ struct Symbol {
   tag: Option<usize>,
 }
 
-enum ScopeKind {
+pub enum ScopeKind {
   File,
   Package,
   Module,
@@ -75,7 +75,11 @@ impl NamingContext {
     }
   }
 
-  fn enter_scope(&mut self, kind: ScopeKind) -> ScopeId {
+  pub fn clear_scope_stack(&mut self) {
+    self.scope_stack.clear();
+  }
+
+  pub fn enter_scope(&mut self, kind: ScopeKind) -> ScopeId {
     let parent = self.scope_stack.last().cloned();
     let scope_id = self.scopes.len() as ScopeId;
     let scope = Scope {
@@ -93,11 +97,11 @@ impl NamingContext {
     scope_id
   }
 
-  fn exit_scope(&mut self) {
+  pub fn exit_scope(&mut self) {
     self.scope_stack.pop();
   }
 
-  fn register_symbol(
+  pub fn register_symbol(
     &mut self,
     name: &str,
     ns: Namespace,

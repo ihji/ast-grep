@@ -1,5 +1,7 @@
 use derive_visitor::Drive;
 
+use crate::naming::{ScopeId, SymbolId};
+
 use super::pretty_print::PrettyPrinter;
 use std::{fmt, path::PathBuf};
 
@@ -31,6 +33,7 @@ pub enum Type {
 pub struct ValueExtra {
   pub type_declared: Option<Type>,
   pub type_inferred: Option<Type>,
+  pub symbol_id: Option<SymbolId>,
 }
 
 impl ValueExtra {
@@ -38,6 +41,7 @@ impl ValueExtra {
     Self {
       type_declared,
       type_inferred,
+      symbol_id: None,
     }
   }
 }
@@ -285,7 +289,10 @@ pub enum Statement {
   Goto {
     target: usize,
   },
-  Define(DefineKind),
+  Define {
+    kind: DefineKind,
+    scope_id: Option<ScopeId>,
+  },
   Break,
   Continue,
 }

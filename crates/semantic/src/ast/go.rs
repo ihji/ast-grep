@@ -204,7 +204,10 @@ impl<'src> GoConverter<'src> {
               .map_err(|e| anyhow!("Error converting package name: {:?}", e))?
               .utf8_text(root.source().as_bytes())?
               .to_string();
-            Ok(vec![il::Statement::Define(il::DefineKind::Package(name))])
+            Ok(vec![il::Statement::Define {
+              kind: il::DefineKind::Package(name),
+              scope_id: None,
+            }])
           }
           TopLevel::MethodDeclaration(md) => {
             let receiver_list = md
@@ -261,7 +264,10 @@ impl<'src> GoConverter<'src> {
               body: method_stmts,
               ret_type: ret_type,
             };
-            Ok(vec![il::Statement::Define(method_decl)])
+            Ok(vec![il::Statement::Define {
+              kind: method_decl,
+              scope_id: None,
+            }])
           }
           TopLevel::FunctionDeclaration(fd) => {
             let function_param_list = fd
@@ -313,7 +319,10 @@ impl<'src> GoConverter<'src> {
               body: function_stmts,
               ret_type: ret_type,
             };
-            Ok(vec![il::Statement::Define(method_decl)])
+            Ok(vec![il::Statement::Define {
+              kind: method_decl,
+              scope_id: None,
+            }])
           }
           _ => {
             eprintln!("convert_toplevels: Unhandled node type: {:?}", top);
@@ -550,7 +559,7 @@ impl<'src> GoConverter<'src> {
           .map(|vs| {
             vs.into_iter()
               .map(|v| match v {
-              il::Value {
+                il::Value {
                   kind: il::ValueKind::Ident(_name),
                   extra:
                     ValueExtra {
@@ -1712,7 +1721,10 @@ impl<'src> GoConverter<'src> {
             extra: method_var.extra,
             tag: Some(tag),
           },
-          vec![il::Statement::Define(method_decl)],
+          vec![il::Statement::Define {
+            kind: method_decl,
+            scope_id: None,
+          }],
         ))
       }
       Expression::CompositeLiteral(cl) => {

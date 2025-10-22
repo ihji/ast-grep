@@ -130,25 +130,31 @@ fn test_define_statements() {
   let mut program = Program::new(PathBuf::new());
 
   // Test class definition
-  program.add_statement(Statement::Define(DefineKind::Class {
-    name: "Test".to_string(),
-    super_class: Some("Base".to_string()),
-    interfaces: vec!["I1".to_string(), "I2".to_string()],
-    body: vec![],
-  }));
+  program.add_statement(Statement::Define {
+    kind: DefineKind::Class {
+      name: "Test".to_string(),
+      super_class: Some("Base".to_string()),
+      interfaces: vec!["I1".to_string(), "I2".to_string()],
+      body: vec![],
+    },
+    scope_id: None,
+  });
 
   // Test method definition
-  program.add_statement(Statement::Define(DefineKind::Method {
-    sig: MethodSig {
-      name: "test".to_string(),
-      params: vec![
-        (Type::Int, Some("x".to_string())),
-        (Type::String, Some("y".to_string())),
-      ],
+  program.add_statement(Statement::Define {
+    kind: DefineKind::Method {
+      sig: MethodSig {
+        name: "test".to_string(),
+        params: vec![
+          (Type::Int, Some("x".to_string())),
+          (Type::String, Some("y".to_string())),
+        ],
+      },
+      body: vec![],
+      ret_type: vec![Type::Int],
     },
-    body: vec![],
-    ret_type: vec![Type::Int],
-  }));
+    scope_id: None,
+  });
 
   let expected = r#"0: define class Test extends Base implements I1, I2
 1: define method test(x: int, y: string): int"#;
@@ -476,45 +482,59 @@ fn test_all_define_kinds() {
   let mut program = Program::new(PathBuf::new());
 
   // Test all define kinds
-  program.add_statement(Statement::Define(DefineKind::Class {
-    name: "Test".to_string(),
-    super_class: Some("Base".to_string()),
-    interfaces: vec!["I1".to_string()],
-    body: vec![],
-  }));
-
-  program.add_statement(Statement::Define(DefineKind::Interface {
-    name: "I1".to_string(),
-    extends: Some("I0".to_string()),
-  }));
-
-  program.add_statement(Statement::Define(DefineKind::Method {
-    sig: MethodSig {
-      name: "test".to_string(),
-      params: vec![(Type::Int, Some("x".to_string()))],
-    },
-    body: vec![],
-    ret_type: vec![Type::Int],
-  }));
-
-  program.add_statement(Statement::Define(DefineKind::Field {
-    name: "field".to_string(),
-    init: Some(Value {
-      kind: ValueKind::IntLit(42),
-      extra: ValueExtra::new(Some(Type::Int), None),
-      tag: None,
-    }),
-    t: Some(Type::Int),
-  }));
-
-  program.add_statement(Statement::Define(DefineKind::Constructor {
-    sig: MethodSig {
+  program.add_statement(Statement::Define {
+    kind: DefineKind::Class {
       name: "Test".to_string(),
-      params: vec![(Type::Int, Some("x".to_string()))],
+      super_class: Some("Base".to_string()),
+      interfaces: vec!["I1".to_string()],
+      body: vec![],
     },
-    body: vec![],
-  }));
+    scope_id: None,
+  });
 
+  program.add_statement(Statement::Define {
+    kind: DefineKind::Interface {
+      name: "I1".to_string(),
+      extends: Some("I0".to_string()),
+    },
+    scope_id: None,
+  });
+
+  program.add_statement(Statement::Define {
+    kind: DefineKind::Method {
+      sig: MethodSig {
+        name: "test".to_string(),
+        params: vec![(Type::Int, Some("x".to_string()))],
+      },
+      body: vec![],
+      ret_type: vec![Type::Int],
+    },
+    scope_id: None,
+  });
+
+  program.add_statement(Statement::Define {
+    kind: DefineKind::Field {
+      name: "field".to_string(),
+      init: Some(Value {
+        kind: ValueKind::IntLit(42),
+        extra: ValueExtra::new(Some(Type::Int), None),
+        tag: None,
+      }),
+      t: Some(Type::Int),
+    },
+    scope_id: None,
+  });
+
+  program.add_statement(Statement::Define {
+    kind: DefineKind::Constructor {
+      sig: MethodSig {
+        name: "Test".to_string(),
+        params: vec![(Type::Int, Some("x".to_string()))],
+      },
+      body: vec![],
+    },
+    scope_id: None,
+  });
   let expected = r#"0: define class Test extends Base implements I1
 1: define interface I1 extends I0
 2: define method test(x: int): int
