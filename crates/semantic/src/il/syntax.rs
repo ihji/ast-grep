@@ -27,11 +27,25 @@ pub enum Type {
   Void,
 }
 
+#[derive(Debug, Clone, Drive, PartialEq, Default)]
+pub struct ValueExtra {
+  pub type_declared: Option<Type>,
+  pub type_inferred: Option<Type>,
+}
+
+impl ValueExtra {
+  pub fn new(type_declared: Option<Type>, type_inferred: Option<Type>) -> Self {
+    Self {
+      type_declared,
+      type_inferred,
+    }
+  }
+}
+
 #[derive(Debug, Clone, Drive, PartialEq)]
 pub struct Value {
   pub kind: ValueKind,
-  pub type_declared: Option<Type>,
-  pub type_inferred: Option<Type>,
+  pub extra: ValueExtra,
   pub tag: Option<usize>,
 }
 
@@ -116,8 +130,24 @@ pub enum Expr {
 }
 
 impl Value {
+  pub fn new(kind: ValueKind) -> Self {
+    Self {
+      kind,
+      extra: ValueExtra::default(),
+      tag: None,
+    }
+  }
+
+  pub fn with_extra(kind: ValueKind, extra: ValueExtra, tag: Option<usize>) -> Self {
+    Self { kind, extra, tag }
+  }
+
   pub fn get_type(&self) -> Option<&Type> {
-    self.type_inferred.as_ref().or(self.type_declared.as_ref())
+    self
+      .extra
+      .type_inferred
+      .as_ref()
+      .or(self.extra.type_declared.as_ref())
   }
 }
 

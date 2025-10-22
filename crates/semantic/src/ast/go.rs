@@ -13,7 +13,7 @@ use crate::ast::go_nodes::anon_unions::Statement_FunctionDeclaration_ImportDecla
 use crate::ast::go_nodes::*;
 use crate::ast::source_info::SourceInfo;
 use crate::il;
-use crate::il::StatementValue;
+use crate::il::{StatementValue, ValueExtra};
 
 use anyhow::anyhow;
 use anyhow::Result;
@@ -92,8 +92,7 @@ impl<'src> GoConverter<'src> {
     (
       il::Value {
         kind: il::ValueKind::Ident(name.clone()),
-        type_declared: t,
-        type_inferred: None,
+        extra: ValueExtra::new(t, None),
         tag: None,
       },
       name,
@@ -130,8 +129,7 @@ impl<'src> GoConverter<'src> {
         if names.is_empty() {
           Ok(vec![il::Value {
             kind: il::ValueKind::Ident("_".to_string()),
-            type_declared: Some(t.clone()),
-            type_inferred: None,
+            extra: ValueExtra::new(Some(t.clone()), None),
             tag: None,
           }])
         } else {
@@ -142,15 +140,13 @@ impl<'src> GoConverter<'src> {
                 if BUILTIN_TYPES.contains_key(name.as_str()) {
                   il::Value {
                     kind: il::ValueKind::Ident("_".to_string()),
-                    type_declared: Some(BUILTIN_TYPES[name.as_str()].clone()),
-                    type_inferred: None,
+                    extra: ValueExtra::new(Some(BUILTIN_TYPES[name.as_str()].clone()), None),
                     tag: None,
                   }
                 } else {
                   il::Value {
                     kind: il::ValueKind::Ident(name.clone()),
-                    type_declared: Some(t.clone()),
-                    type_inferred: None,
+                    extra: ValueExtra::new(Some(t.clone()), None),
                     tag: None,
                   }
                 }
@@ -168,8 +164,7 @@ impl<'src> GoConverter<'src> {
         let t = self.convert_type(root, &vd.r#type().unwrap());
         Ok(vec![il::Value {
           kind: il::ValueKind::Ident(name),
-          type_declared: Some(il::Type::Array(Box::new(t.clone()), None)),
-          type_inferred: None,
+          extra: ValueExtra::new(Some(il::Type::Array(Box::new(t.clone()), None)), None),
           tag: None,
         }])
       }
@@ -226,8 +221,11 @@ impl<'src> GoConverter<'src> {
               .flat_map(|v| match v {
                 il::Value {
                   kind: il::ValueKind::Ident(name),
-                  type_declared: Some(t),
-                  type_inferred: _,
+                  extra:
+                    ValueExtra {
+                      type_declared: Some(t),
+                      ..
+                    },
                   tag: _,
                 } => Some((t, Some(name))),
                 _ => {
@@ -275,8 +273,11 @@ impl<'src> GoConverter<'src> {
               .flat_map(|v| match v {
                 il::Value {
                   kind: il::ValueKind::Ident(name),
-                  type_declared: Some(t),
-                  type_inferred: None,
+                  extra:
+                    ValueExtra {
+                      type_declared: Some(t),
+                      ..
+                    },
                   tag: _,
                 } => Some((t, Some(name))),
                 _ => {
@@ -384,9 +385,12 @@ impl<'src> GoConverter<'src> {
           vs.into_iter()
             .map(|v| match v {
               il::Value {
-                kind: il::ValueKind::Ident(name),
-                type_declared: Some(t),
-                type_inferred: _,
+                kind: il::ValueKind::Ident(_name),
+                extra:
+                  ValueExtra {
+                    type_declared: Some(t),
+                    ..
+                  },
                 tag: _,
               } => t,
               _ => {
@@ -504,8 +508,7 @@ impl<'src> GoConverter<'src> {
           .unwrap_or((
             il::Value {
               kind: il::ValueKind::IntLit(0),
-              type_declared: None,
-              type_inferred: None,
+              extra: ValueExtra::new(None, None),
               tag: None,
             },
             vec![],
@@ -513,8 +516,7 @@ impl<'src> GoConverter<'src> {
         let length = match length_exp {
           il::Value {
             kind: il::ValueKind::IntLit(len),
-            type_declared: _,
-            type_inferred: _,
+            extra: ValueExtra { .. },
             tag: _,
           } => Some(len as usize),
           _ => {
@@ -548,10 +550,13 @@ impl<'src> GoConverter<'src> {
           .map(|vs| {
             vs.into_iter()
               .map(|v| match v {
-                il::Value {
-                  kind: il::ValueKind::Ident(name),
-                  type_declared: Some(t),
-                  type_inferred: _,
+              il::Value {
+                  kind: il::ValueKind::Ident(_name),
+                  extra:
+                    ValueExtra {
+                      type_declared: Some(t),
+                      ..
+                    },
                   tag: _,
                 } => t,
                 _ => {
@@ -666,8 +671,7 @@ impl<'src> GoConverter<'src> {
                     .map(|(name, value)| il::Statement::Assign {
                       left: il::Value {
                         kind: il::ValueKind::Ident(name),
-                        type_declared: Some(type_.clone()),
-                        type_inferred: None,
+                        extra: ValueExtra::new(Some(type_.clone()), None),
                         tag: None,
                       },
                       right: value,
@@ -722,8 +726,7 @@ impl<'src> GoConverter<'src> {
                 .map(|(name, value)| il::Statement::Assign {
                   left: il::Value {
                     kind: il::ValueKind::Ident(name),
-                    type_declared: Some(type_.clone()),
-                    type_inferred: None,
+                    extra: ValueExtra::new(Some(type_.clone()), None),
                     tag: None,
                   },
                   right: value,
@@ -741,14 +744,12 @@ impl<'src> GoConverter<'src> {
               .map(|name| il::Statement::Assign {
                 left: il::Value {
                   kind: il::ValueKind::Ident(name.clone()),
-                  type_declared: Some(type_.clone()),
-                  type_inferred: None,
+                  extra: ValueExtra::new(Some(type_.clone()), None),
                   tag: None,
                 },
                 right: il::Value {
                   kind: il::ValueKind::NullLit,
-                  type_declared: None,
-                  type_inferred: None,
+                  extra: ValueExtra::new(None, None),
                   tag: None,
                 },
                 tag: Some(tag),
@@ -802,8 +803,7 @@ impl<'src> GoConverter<'src> {
                 statements: vec![],
                 result: Some(il::Value {
                   kind: il::ValueKind::IntLit(1),
-                  type_declared: None,
-                  type_inferred: None,
+                  extra: ValueExtra::new(None, None),
                   tag: None,
                 }),
               },
@@ -847,8 +847,7 @@ impl<'src> GoConverter<'src> {
               .unwrap_or((
                 il::Value {
                   kind: il::ValueKind::IntLit(1),
-                  type_declared: None,
-                  type_inferred: None,
+                  extra: ValueExtra::new(None, None),
                   tag: None,
                 },
                 vec![],
@@ -954,8 +953,7 @@ impl<'src> GoConverter<'src> {
                           statements: vec![],
                           result: Some(il::Value {
                             kind: il::ValueKind::TypeLit(t),
-                            type_declared: None,
-                            type_inferred: None,
+                            extra: ValueExtra::new(None, None),
                             tag: None,
                           }),
                         },
@@ -969,8 +967,7 @@ impl<'src> GoConverter<'src> {
                           statements: vec![],
                           result: Some(il::Value {
                             kind: il::ValueKind::TypeLit(t),
-                            type_declared: None,
-                            type_inferred: None,
+                            extra: ValueExtra::new(None, None),
                             tag: None,
                           }),
                         },
@@ -1220,8 +1217,7 @@ impl<'src> GoConverter<'src> {
             vec![il::Statement::Assign {
               left: il::Value {
                 kind: il::ValueKind::Ident("_".to_string()),
-                type_declared: None,
-                type_inferred: None,
+                extra: ValueExtra::new(None, None),
                 tag: None,
               },
               right: expr,
@@ -1246,14 +1242,12 @@ impl<'src> GoConverter<'src> {
                     left: Box::new(value),
                     right: Box::new(il::Value {
                       kind: il::ValueKind::IntLit(1),
-                      type_declared: None,
-                      type_inferred: None,
+                      extra: ValueExtra::new(None, None),
                       tag: None,
                     }),
                     op: il::BinaryOp::Add,
                   }),
-                  type_declared: None,
-                  type_inferred: None,
+                  extra: ValueExtra::new(None, None),
                   tag: None,
                 },
                 tag: Some(tag),
@@ -1277,14 +1271,12 @@ impl<'src> GoConverter<'src> {
                     left: Box::new(value),
                     right: Box::new(il::Value {
                       kind: il::ValueKind::IntLit(1),
-                      type_declared: None,
-                      type_inferred: None,
+                      extra: ValueExtra::new(None, None),
                       tag: None,
                     }),
                     op: il::BinaryOp::Sub,
                   }),
-                  type_declared: None,
-                  type_inferred: None,
+                  extra: ValueExtra::new(None, None),
                   tag: None,
                 },
                 tag: Some(tag),
@@ -1426,8 +1418,7 @@ impl<'src> GoConverter<'src> {
     Ok((
       il::Value {
         kind: il::ValueKind::Exp(il::Expr::Composite { elements: kvs }),
-        type_declared: None,
-        type_inferred: None,
+        extra: ValueExtra::new(None, None),
         tag: Some(tag),
       },
       stmts.into_iter().flatten().collect(),
@@ -1446,8 +1437,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::Ident(name.to_string()),
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::new(None, None),
             tag: Some(tag),
           },
           vec![],
@@ -1459,8 +1449,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::IntLit(value),
-            type_declared: Some(il::Type::Int),
-            type_inferred: None,
+            extra: ValueExtra::new(Some(il::Type::Int), None),
             tag: Some(tag),
           },
           vec![],
@@ -1472,8 +1461,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::FloatLit(value),
-            type_declared: Some(il::Type::Float),
-            type_inferred: None,
+            extra: ValueExtra::new(Some(il::Type::Float), None),
             tag: Some(tag),
           },
           vec![],
@@ -1488,8 +1476,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::StringLit(text),
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::new(None, None),
             tag: Some(tag),
           },
           vec![],
@@ -1504,8 +1491,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::StringLit(text),
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::new(None, None),
             tag: Some(tag),
           },
           vec![],
@@ -1516,8 +1502,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::NullLit,
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::new(None, None),
             tag: Some(tag),
           },
           vec![],
@@ -1535,8 +1520,7 @@ impl<'src> GoConverter<'src> {
               right: Box::new(right),
               op: bin_op,
             }),
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::new(None, None),
             tag: Some(tag),
           },
           [left_stmts, right_stmts].concat(),
@@ -1560,8 +1544,7 @@ impl<'src> GoConverter<'src> {
               kind: il::ValueKind::Exp(il::Expr::Deref {
                 value: Box::new(value),
               }),
-              type_declared: None,
-              type_inferred: None,
+              extra: ValueExtra::new(None, None),
               tag: None,
             },
             stmts,
@@ -1573,8 +1556,7 @@ impl<'src> GoConverter<'src> {
               value: Box::new(value),
               op,
             }),
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::new(None, None),
             tag: None,
           },
           stmts,
@@ -1585,8 +1567,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::IntLit(1),
-            type_declared: Some(il::Type::Bool),
-            type_inferred: None,
+            extra: ValueExtra::new(Some(il::Type::Bool), None),
             tag: Some(tag),
           },
           vec![],
@@ -1597,8 +1578,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::IntLit(0),
-            type_declared: Some(il::Type::Bool),
-            type_inferred: None,
+            extra: ValueExtra::new(Some(il::Type::Bool), None),
             tag: Some(tag),
           },
           vec![],
@@ -1617,8 +1597,7 @@ impl<'src> GoConverter<'src> {
               base: Box::new(base),
               field,
             }),
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::new(None, None),
             tag: None,
           },
           base_stmts,
@@ -1648,8 +1627,7 @@ impl<'src> GoConverter<'src> {
               Ok((
                 il::Value {
                   kind: il::ValueKind::TypeLit(t),
-                  type_declared: None,
-                  type_inferred: None,
+                  extra: ValueExtra::new(None, None),
                   tag: None,
                 },
                 vec![],
@@ -1694,12 +1672,16 @@ impl<'src> GoConverter<'src> {
           .map(|p| match &p {
             il::Value {
               kind: il::ValueKind::Ident(name),
-              type_declared: Some(t),
+              extra:
+                ValueExtra {
+                  type_declared: Some(t),
+                  ..
+                },
               ..
             } => Ok((t.clone(), Some(name.clone()))),
             _ => Err(anyhow!("Unsupported parameter type")),
           })
-          .collect::<Result<Vec<_>>>()?;
+          .collect::<Result<Vec<(il::Type, Option<String>)>>>()?;
         let ret_type = fl
           .result()
           .transpose()
@@ -1727,8 +1709,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: method_var.kind,
-            type_declared: method_var.type_declared,
-            type_inferred: method_var.type_inferred,
+            extra: method_var.extra,
             tag: Some(tag),
           },
           vec![il::Statement::Define(method_decl)],
@@ -1749,8 +1730,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::CompositeLit(type_.clone(), Box::new(elems)),
-            type_declared: Some(type_),
-            type_inferred: None,
+            extra: ValueExtra::new(Some(type_), None),
             tag: Some(tag),
           },
           stmts,
@@ -1761,8 +1741,7 @@ impl<'src> GoConverter<'src> {
         Ok((
           il::Value {
             kind: il::ValueKind::NullLit,
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::new(None, None),
             tag: None,
           },
           vec![],

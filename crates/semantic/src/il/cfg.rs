@@ -6,7 +6,9 @@ use petgraph::{
   visit::EdgeRef,
 };
 
-use crate::il::{DefineKind, InvokeKind, MethodSig, Program, Statement, Type, Value, ValueKind};
+use crate::il::{
+  DefineKind, InvokeKind, MethodSig, Program, Statement, Type, Value, ValueExtra, ValueKind,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CfgStatement {
@@ -329,8 +331,7 @@ impl CFG {
             stmts: vec![CfgStatement::Assume {
               value: Value {
                 kind: neg_cond,
-                type_declared: condition.type_declared.clone(),
-                type_inferred: condition.type_inferred.clone(),
+                extra: condition.extra.clone(),
                 tag: condition.tag,
               },
               tag: *tag,
@@ -376,8 +377,7 @@ impl CFG {
           stmts: vec![CfgStatement::Assume {
             value: condition.result.clone().unwrap_or(Value {
               kind: ValueKind::IntLit(1),
-              type_declared: None,
-              type_inferred: None,
+              extra: ValueExtra::default(),
               tag: None,
             }),
             tag: *tag,
@@ -420,8 +420,7 @@ impl CFG {
           stmts: vec![CfgStatement::Assume {
             value: condition.result.clone().unwrap_or(Value {
               kind: ValueKind::IntLit(1),
-              type_declared: None,
-              type_inferred: None,
+              extra: ValueExtra::default(),
               tag: None,
             }),
             tag: None,
@@ -488,8 +487,7 @@ impl CFG {
             Self::convert_statements(graph, &case_value.statements);
           let case_value = case_value.result.clone().unwrap_or(Value {
             kind: ValueKind::IntLit(1),
-            type_declared: None,
-            type_inferred: None,
+            extra: ValueExtra::default(),
             tag: None,
           });
           let true_cond_value = if let Some(ref v) = value.result {
@@ -499,8 +497,7 @@ impl CFG {
                 right: Box::new(case_value.clone()),
                 op: crate::il::BinaryOp::Eq,
               }),
-              type_declared: None,
-              type_inferred: Some(Type::Bool),
+              extra: ValueExtra::new(None, Some(Type::Bool)),
               tag: case_value.tag,
             }
           } else {
@@ -513,8 +510,7 @@ impl CFG {
                 right: Box::new(case_value.clone()),
                 op: crate::il::BinaryOp::Neq,
               }),
-              type_declared: None,
-              type_inferred: Some(Type::Bool),
+              extra: ValueExtra::new(None, Some(Type::Bool)),
               tag: case_value.tag,
             }
           } else {

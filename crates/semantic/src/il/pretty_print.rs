@@ -147,7 +147,7 @@ impl PrettyPrinter {
     match &value.kind {
       ValueKind::NullLit => "null".to_string(),
       ValueKind::Ident(name) => {
-        let type_str = match &value.type_declared {
+        let type_str = match &value.extra.type_declared {
           Some(t) => format!(": {}", Self::print_type(t)),
           None => String::new(),
         };
