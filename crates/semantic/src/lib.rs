@@ -2,6 +2,7 @@ pub mod ast;
 pub mod cli;
 pub mod engine;
 pub mod il;
+pub mod naming;
 pub mod report;
 
 use std::path::PathBuf;

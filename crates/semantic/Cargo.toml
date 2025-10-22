@@ -15,6 +15,7 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 petgraph = "0.8.2"
 bitvec = "1"
+string-interner = "0.19.0"
 derive-visitor = { version = "0.4.0", features = ["std-types-drive"] }
 
 clap = { version = "4.5.4", features = ["derive"] }
