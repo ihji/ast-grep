@@ -41,6 +41,7 @@ pub fn analyze_source(
     let mut naming_context = NamingContext::new();
     naming::collect_pgm(&mut naming_context, &mut converter.program);
     println!("Naming Context: {:#?}", naming_context);
+    naming::annotate_pgm(&mut naming_context, &mut converter.program);
     println!("IL: {}", &converter.program);
     let mut cfgs = CFGs::new();
     cfgs.insert(converter.program);

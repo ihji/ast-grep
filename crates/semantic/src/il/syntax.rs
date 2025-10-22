@@ -308,6 +308,7 @@ pub struct Program {
   pub statements: Vec<Statement>,
   #[drive(skip)]
   pub path: PathBuf,
+  pub scope_id: Option<ScopeId>,
 }
 
 impl Program {
@@ -315,6 +316,7 @@ impl Program {
     Self {
       statements: Vec::new(),
       path,
+      scope_id: None,
     }
   }
 

@@ -49,12 +49,14 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
     }
     Expr::DotAccess { base, field } => {
       let base_loc = match base.get_type() {
-        Some(Type::Pointer(_)) => eval_loc(memory, base),
-        _ => {
+        Some(Type::Pointer(_)) => {
           let base_val = eval(memory, base);
+          let nt = NullTrigger::new(base_val.clone(), memory);
+          memory.add_trigger(Box::new(nt));
           let base_loc = base_val.to_aloc();
           base_loc.unwrap_or_else(|| ALoc::new_unknown())
         }
+        _ => eval_loc(memory, base),
       };
       let loc = base_loc.add_field(field.clone());
       memory.read(&loc).cloned().unwrap_or(AValue::top())

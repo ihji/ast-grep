@@ -8,7 +8,8 @@ use crate::{
 
 pub fn collect_pgm(ctx: &mut NamingContext, pgm: &mut Program) {
   ctx.clear_scope_stack();
-  ctx.enter_scope(ScopeKind::File, pgm.path.to_str());
+  let pgm_scope_id = ctx.enter_scope(ScopeKind::File, pgm.path.to_str());
+  pgm.scope_id = Some(pgm_scope_id);
   for stmt in &mut pgm.statements {
     collect_stmt(ctx, stmt);
   }
@@ -62,11 +63,11 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
       }
       DefineKind::Interface { .. } => {}
       DefineKind::Field { .. } => {}
-      DefineKind::Var { name, .. } => {
+      DefineKind::Var { name, t, .. } => {
         ctx.register_symbol(
           name,
           Namespace::Value,
-          DeclKind::Var,
+          DeclKind::Var(t.clone()),
           Visibility::Private,
           tag.clone(),
         );

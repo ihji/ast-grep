@@ -4,6 +4,8 @@ use std::fmt::Debug;
 use string_interner::symbol::DefaultSymbol as StrSymbol;
 use string_interner::DefaultStringInterner;
 
+use crate::il;
+
 pub struct NamingContext {
   interner: DefaultStringInterner,
   scopes: Vec<Scope>,
@@ -30,9 +32,9 @@ pub enum Visibility {
   Private,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeclKind {
-  Var,
+  Var(Option<il::Type>),
   Function,
   Struct,
   Enum,
@@ -43,11 +45,11 @@ pub enum DeclKind {
 }
 
 #[derive(Debug)]
-struct Symbol {
-  id: SymbolId,
+pub struct Symbol {
+  pub id: SymbolId,
   name: StrSymbol,
   ns: Namespace,
-  kind: DeclKind,
+  pub kind: DeclKind,
   owner_scope: ScopeId,
   visibility: Visibility,
   tag: Option<usize>,
@@ -140,6 +142,26 @@ impl NamingContext {
       .or_insert_with(Vec::new)
       .push(symbol_id);
     symbol_id
+  }
+
+  pub fn lookup_symbol(
+    &mut self,
+    name: &str,
+    ns: Namespace,
+    starting_scope: Option<ScopeId>,
+  ) -> Option<&Symbol> {
+    let name_sym = self.interner.get_or_intern(name);
+    let mut current_scope_id = starting_scope;
+    while let Some(scope_id) = current_scope_id {
+      let scope = &self.scopes[scope_id as usize];
+      if let Some(symbol_ids) = scope.symbols.get(&(name_sym, ns)) {
+        if let Some(&symbol_id) = symbol_ids.last() {
+          return Some(&self.symbols[symbol_id as usize]);
+        }
+      }
+      current_scope_id = scope.parent;
+    }
+    None
   }
 }
 

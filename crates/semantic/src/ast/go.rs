@@ -1,3 +1,4 @@
+use crate::ast::go_nodes::anon_unions::Anon296608916358560338577356235414932652551 as CompositeLiteralType;
 use crate::ast::go_nodes::anon_unions::Block_IfStatement;
 use crate::ast::go_nodes::anon_unions::DefaultCase_ExpressionCase;
 use crate::ast::go_nodes::anon_unions::DefaultCase_TypeCase;
@@ -1610,13 +1611,19 @@ impl<'src> GoConverter<'src> {
             stmts,
           ));
         }
+        let t = match op {
+          il::UnaryOp::And => Some(il::Type::Pointer(Box::new(
+            value.extra.type_declared.clone().unwrap_or(il::Type::Any),
+          ))),
+          _ => None,
+        };
         Ok((
           il::Value {
             kind: il::ValueKind::Exp(il::Expr::UnOp {
               value: Box::new(value),
               op,
             }),
-            extra: ValueExtra::new(None, None),
+            extra: ValueExtra::new(t, None),
             tag: None,
           },
           stmts,
@@ -1786,10 +1793,8 @@ impl<'src> GoConverter<'src> {
         let (elems, stmts) = self.convert_literal_value(root, &body)?;
         let type_ = cl
           .r#type()
-          .map_err(|e| anyhow!("Error converting composite literal type: {:?}", e))?;
-        let type_ = match type_ {
-          _ => anyhow::Ok(il::Type::Any), // TODO: Handle specific types
-        }?;
+          .map_err(|e| anyhow!("Error converting composite literal type: {:?}", e))
+          .and_then(|t| self.convert_composite_literal_type(root, &t))?;
         let tag = self.source_info.register(*cl.raw());
         Ok((
           il::Value {
@@ -1810,6 +1815,29 @@ impl<'src> GoConverter<'src> {
           },
           vec![],
         ))
+      }
+    }
+  }
+
+  fn convert_composite_literal_type(
+    &mut self,
+    root: &AstGrep<StrDoc<SupportLang>>,
+    node: &CompositeLiteralType<'src>,
+  ) -> Result<il::Type> {
+    match node {
+      CompositeLiteralType::TypeIdentifier(ti) => {
+        let type_name = ti.utf8_text(root.source().as_bytes())?.to_string();
+        Ok(il::Type::Named {
+          name: type_name,
+          generics: vec![],
+        })
+      }
+      _ => {
+        eprintln!(
+          "convert_composite_literal_type: Unhandled type node: {:?}",
+          node
+        );
+        Ok(il::Type::Any)
       }
     }
   }
