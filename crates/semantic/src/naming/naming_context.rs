@@ -1,9 +1,9 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use string_interner::symbol::DefaultSymbol as StrSymbol;
 use string_interner::DefaultStringInterner;
 
-#[derive(Debug)]
 pub struct NamingContext {
   interner: DefaultStringInterner,
   scopes: Vec<Scope>,
@@ -138,5 +138,31 @@ impl NamingContext {
       .or_insert_with(Vec::new)
       .push(symbol_id);
     symbol_id
+  }
+}
+
+impl Debug for NamingContext {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    writeln!(f, "NamingContext {{")?;
+    writeln!(f, "  Scopes:")?;
+    for scope in &self.scopes {
+      writeln!(
+        f,
+        "    Scope ID: {}, Kind: {:?}, Parent: {:?}, Children: {:?}",
+        scope.id, scope.kind, scope.parent, scope.children
+      )?;
+      for ((name_sym, _ns), symbol_ids) in &scope.symbols {
+        let name = self.interner.resolve(*name_sym).unwrap();
+        for symbol_id in symbol_ids {
+          let symbol = &self.symbols[*symbol_id as usize];
+          writeln!(
+            f,
+            "      Symbol ID: {}, Name: {}, Namespace: {:?}, Kind: {:?}, Visibility: {:?}, Tag: {:?}",
+            symbol.id, name, symbol.ns, symbol.kind, symbol.visibility, symbol.tag
+          )?;
+        }
+      }
+    }
+    writeln!(f, "}}")
   }
 }
