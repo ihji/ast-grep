@@ -38,6 +38,13 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
       tag,
     } => match kind {
       DefineKind::Class { name, body, .. } => {
+        ctx.register_symbol(
+          name,
+          Namespace::Type,
+          DeclKind::Class,
+          Visibility::Public, // TODO: handle visibility
+          tag.clone(),
+        );
         *scope_id = Some(collect_stmts_in_scope(
           ctx,
           body,
@@ -50,6 +57,13 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
         body,
         ..
       } => {
+        ctx.register_symbol(
+          name,
+          Namespace::Method,
+          DeclKind::Function,
+          Visibility::Public, // TODO: handle visibility
+          tag.clone(),
+        );
         *scope_id = Some(collect_stmts_in_scope(
           ctx,
           body,
@@ -68,7 +82,7 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
           name,
           Namespace::Value,
           DeclKind::Var(t.clone()),
-          Visibility::Private,
+          Visibility::Private, // TODO: handle visibility
           tag.clone(),
         );
       }

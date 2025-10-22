@@ -36,10 +36,12 @@ pub enum Visibility {
 pub enum DeclKind {
   Var(Option<il::Type>),
   Function,
+  Class,
   Struct,
   Enum,
   Trait,
   Impl,
+  Interface,
   Module,
   Package,
 }
