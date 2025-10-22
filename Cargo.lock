@@ -282,6 +282,7 @@ dependencies = [
  "clap",
  "derive-visitor",
  "petgraph",
+ "string-interner",
  "thiserror 2.0.16",
  "tree-sitter-go",
  "type-sitter",
@@ -1915,6 +1916,16 @@ name = "strict"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f42444fea5b87a39db4218d9422087e66a85d0e7a0963a439b07bcdf91804006"
+
+[[package]]
+name = "string-interner"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23de088478b31c349c9ba67816fa55d9355232d63c3afea8bf513e31f0f1d2c0"
+dependencies = [
+ "hashbrown 0.15.2",
+ "serde",
+]
 
 [[package]]
 name = "strsim"

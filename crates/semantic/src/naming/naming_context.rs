@@ -28,10 +28,22 @@ enum Visibility {
   Private,
 }
 
+enum DeclKind {
+  Var,
+  Function,
+  Struct,
+  Enum,
+  Trait,
+  Impl,
+  Module,
+  Package,
+}
+
 struct Symbol {
   id: SymbolId,
   name: StrSymbol,
   ns: Namespace,
+  kind: DeclKind,
   owner_scope: ScopeId,
   visibility: Visibility,
   tag: Option<usize>,
@@ -89,6 +101,7 @@ impl NamingContext {
     &mut self,
     name: &str,
     ns: Namespace,
+    kind: DeclKind,
     visibility: Visibility,
     tag: Option<usize>,
   ) -> SymbolId {
@@ -101,7 +114,8 @@ impl NamingContext {
     let symbol = Symbol {
       id: symbol_id,
       name: name_sym,
-      ns: ns,
+      ns,
+      kind,
       owner_scope: *owner_scope,
       visibility,
       tag,
