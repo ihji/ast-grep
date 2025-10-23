@@ -6,15 +6,15 @@ type Node struct {
 }
 
 func directFieldOnNilPointer() {
-	// CREATE[null]: test
+	// CREATE[null]: test1
 	var n *Node
-	// FIND[NULL_DEREFERENCE]: test
+	// FIND[NULL_DEREFERENCE]: test1
 	_ = n.Value // panic: invalid memory address or nil pointer dereference
 }
 
 func nestedFieldInnerNil() {
-	// TODO_CREATE: non-nil outer *Node but inner Next is nil
+	// TODO_CREATE[null]: test2
 	n := &Node{Value: 42, Next: nil}
-	// TODO_FIND: NULL_DEREFERENCE (nested field access; n.Next is nil)
+	// FIND[NULL_DEREFERENCE]: test2
 	_ = n.Next.Value // panic: invalid memory address or nil pointer dereference
 }

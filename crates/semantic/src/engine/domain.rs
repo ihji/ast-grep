@@ -11,6 +11,7 @@ use crate::engine::triggers::{Checked, Trigger, Triggers};
 use crate::il::{MethodSig, Type};
 use std::fmt::{self, Display, Formatter};
 
+use bitvec::vec;
 use AValue::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -34,6 +35,9 @@ pub enum AValue {
   },
   AArray {
     elements: Vec<AValue>,
+  },
+  StructMarker {
+    fields: Vec<String>,
   },
 }
 
@@ -287,12 +291,56 @@ impl AMem {
     }
   }
 
-  pub fn read(&self, loc: &ALoc) -> Option<&AValue> {
-    self.memory.get(loc)
+  pub fn read(&self, loc: &ALoc) -> Option<AValue> {
+    let v = self.memory.get(loc);
+    match v {
+      Some(AValue::StructMarker { fields }) => {
+        let mut struct_fields = BTreeMap::new();
+        for field in fields {
+          let field_loc = ALoc {
+            kind: loc.kind.clone(),
+            path: {
+              let mut path = loc.path.clone();
+              path.push(Seg::Field(field.clone()));
+              path
+            },
+          };
+          if let Some(field_value) = self.read(&field_loc) {
+            struct_fields.insert(field.clone(), field_value.clone());
+          }
+        }
+        Some(AValue::AStruct {
+          fields: struct_fields,
+        })
+      }
+      _ => v.cloned(),
+    }
   }
 
   pub fn update(&mut self, loc: ALoc, value: AValue) {
-    self.memory.insert(loc, value);
+    match value {
+      AValue::AStruct { fields } => {
+        let mut field_ids = vec![];
+        for (field_name, field_value) in fields {
+          field_ids.push(field_name.clone());
+          let field_loc = ALoc {
+            kind: loc.kind.clone(),
+            path: {
+              let mut path = loc.path.clone();
+              path.push(Seg::Field(field_name));
+              path
+            },
+          };
+          self.update(field_loc, field_value);
+        }
+        self
+          .memory
+          .insert(loc, AValue::StructMarker { fields: field_ids });
+      }
+      _ => {
+        self.memory.insert(loc, value);
+      }
+    }
   }
 
   pub fn contains(&self, loc: &ALoc) -> bool {
@@ -382,6 +430,16 @@ impl Display for AValue {
           write!(f, "{}", element)?;
         }
         write!(f, "]")
+      }
+      AValue::StructMarker { fields } => {
+        write!(f, "StructMarker {{ ")?;
+        for (i, field) in fields.iter().enumerate() {
+          if i > 0 {
+            write!(f, ", ")?;
+          }
+          write!(f, "{}", field)?;
+        }
+        write!(f, " }}")
       }
     }
   }

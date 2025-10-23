@@ -93,24 +93,21 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
       memory.add_trigger(Box::new(nt));
       let loc_opt = ptr_val.to_aloc();
       if let Some(loc) = loc_opt {
-        memory.read(&loc).cloned().unwrap_or(AValue::top())
+        memory.read(&loc).unwrap_or(AValue::top())
       } else {
         AValue::top()
       }
     }
     Expr::DotAccess { base, field } => {
-      let base_loc = match base.get_type() {
-        Some(Type::Pointer(_)) => {
-          let base_val = eval(memory, base);
-          let nt = NullTrigger::new(base_val.clone(), memory);
-          memory.add_trigger(Box::new(nt));
-          let base_loc = base_val.to_aloc();
-          base_loc.unwrap_or_else(|| ALoc::new_unknown())
-        }
-        _ => eval_loc(memory, base),
+      let base_val = eval(memory, base);
+      let nt = NullTrigger::new(base_val.clone(), memory);
+      memory.add_trigger(Box::new(nt));
+      let base_loc = match base_val {
+        AValue::StructMarker { .. } => eval_loc(memory, base),
+        _ => base_val.to_aloc().unwrap_or(ALoc::new_unknown()),
       };
       let loc = base_loc.add_field(field.clone());
-      memory.read(&loc).cloned().unwrap_or(AValue::top())
+      memory.read(&loc).unwrap_or(AValue::top())
     }
     _ => AValue::top(),
   }
@@ -123,7 +120,7 @@ fn eval(memory: &mut AMem, value: &Value) -> AValue {
     ValueKind::Exp(expr) => eval_expr(memory, expr),
     ValueKind::Ident(_) => {
       let loc = eval_loc(memory, value);
-      memory.read(&loc).unwrap_or(&AValue::top()).clone()
+      memory.read(&loc).unwrap_or(AValue::top())
     }
     ValueKind::CompositeLit(_t, arg) => eval(memory, arg),
     _ => AValue::top(),
