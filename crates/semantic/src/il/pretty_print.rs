@@ -1,4 +1,4 @@
-use crate::il::ValueKind;
+use crate::il::{syntax::CompositeItem, ValueKind};
 
 use super::syntax::{
   BinaryOp, DefineKind, Expr, InvokeKind, MethodSig, Program, Statement, StatementValue, Type,
@@ -125,9 +125,11 @@ impl PrettyPrinter {
       Expr::Composite { elements } => {
         let elems_str = elements
           .iter()
-          .map(|(k, v)| match k {
-            Some(key) => format!("{}: {}", key, Self::print_value(v)),
-            None => Self::print_value(v),
+          .map(|element| match element {
+            CompositeItem::KV(key, value) => {
+              format!("{}: {}", Self::print_value(key), Self::print_value(value))
+            }
+            CompositeItem::Value(value) => Self::print_value(value),
           })
           .collect::<Vec<_>>()
           .join(", ");

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use ast_grep_core::matcher::MatcherExt;
 
 use crate::engine::constraints::Constraint;
@@ -7,7 +9,7 @@ use crate::engine::domain::{ALoc, AMem, AValue, SExpr};
 use crate::engine::interval::Interval;
 use crate::engine::path_explorer::PathExplorer;
 use crate::engine::triggers::NullTrigger;
-use crate::il::{BasicBlock, CfgStatement, Type, ValueKind};
+use crate::il::{BasicBlock, CfgStatement, CompositeItem, Type, ValueKind};
 use crate::il::{BinaryOp, Expr, UnaryOp, Value};
 
 fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
@@ -33,7 +35,56 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
       let value_val = eval(memory, value);
       match op {
         UnaryOp::Neg => -value_val,
+        UnaryOp::And => {
+          let loc = ALoc::new_unknown();
+          memory.update(loc.clone(), value_val);
+          AValue::ARef {
+            location: Box::new(loc),
+            type_info: None,
+            history: None,
+          }
+        }
         _ => AValue::top(),
+      }
+    }
+    Expr::Composite { elements } => {
+      let is_keyed = elements
+        .iter()
+        .any(|e| matches!(e, CompositeItem::KV(_, _)));
+      if is_keyed {
+        let mut fields = BTreeMap::new();
+        let mut cur_idx = 0;
+        for element in elements {
+          match element {
+            CompositeItem::KV(key, value) => {
+              let key_str = match &key.kind {
+                ValueKind::IntLit(i) => {
+                  cur_idx = *i as usize + 1;
+                  i.to_string()
+                }
+                ValueKind::Ident(s) => s.clone(),
+                _ => format!("{}", key),
+              };
+              fields.insert(key_str, eval(memory, value));
+            }
+            CompositeItem::Value(value) => {
+              let idx_key = format!("{}", cur_idx);
+              fields.insert(idx_key, eval(memory, value));
+              cur_idx += 1;
+            }
+          }
+        }
+        AValue::AStruct { fields }
+      } else {
+        let mut array_elems = Vec::new();
+        for element in elements {
+          if let CompositeItem::Value(value) = element {
+            array_elems.push(eval(memory, value));
+          }
+        }
+        AValue::AArray {
+          elements: array_elems,
+        }
       }
     }
     Expr::Deref { value } => {
@@ -74,6 +125,7 @@ fn eval(memory: &mut AMem, value: &Value) -> AValue {
       let loc = eval_loc(memory, value);
       memory.read(&loc).unwrap_or(&AValue::top()).clone()
     }
+    ValueKind::CompositeLit(_t, arg) => eval(memory, arg),
     _ => AValue::top(),
   }
 }

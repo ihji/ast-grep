@@ -104,6 +104,12 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug, Clone, Drive, PartialEq)]
+pub enum CompositeItem {
+  KV(Value, Value),
+  Value(Value),
+}
+
+#[derive(Debug, Clone, Drive, PartialEq)]
 pub enum Expr {
   BinOp {
     left: Box<Value>,
@@ -115,7 +121,7 @@ pub enum Expr {
     op: UnaryOp,
   },
   Composite {
-    elements: Vec<(Option<Value>, Value)>,
+    elements: Vec<CompositeItem>,
   },
   New {
     t: Type,
@@ -446,18 +452,17 @@ impl fmt::Display for Expr {
       Expr::BinOp { left, right, op } => write!(f, "{} {} {}", left, op, right),
       Expr::UnOp { value, op } => write!(f, "{}{}", op, value),
       Expr::Composite { elements } => {
-        write!(f, "{{")?;
-        for (i, (key, value)) in elements.iter().enumerate() {
+        write!(f, "{{ ")?;
+        for (i, element) in elements.iter().enumerate() {
           if i > 0 {
             write!(f, ", ")?;
           }
-          if let Some(k) = key {
-            write!(f, "{}: {}", k, value)?;
-          } else {
-            write!(f, "{}", value)?;
+          match element {
+            CompositeItem::KV(key, value) => write!(f, "{}: {}", key, value)?,
+            CompositeItem::Value(value) => write!(f, "{}", value)?,
           }
         }
-        write!(f, "}}")
+        write!(f, " }}")
       }
       Expr::New { t } => write!(f, "new {}", t),
       Expr::Deref { value } => write!(f, "*{}", value),

@@ -32,6 +32,9 @@ pub enum AValue {
   AStruct {
     fields: BTreeMap<String, AValue>,
   },
+  AArray {
+    elements: Vec<AValue>,
+  },
 }
 
 impl AValue {
@@ -369,6 +372,16 @@ impl Display for AValue {
           write!(f, "{}: {}", key, value)?;
         }
         write!(f, " }}")
+      }
+      AValue::AArray { elements } => {
+        write!(f, "[")?;
+        for (i, element) in elements.iter().enumerate() {
+          if i > 0 {
+            write!(f, ", ")?;
+          }
+          write!(f, "{}", element)?;
+        }
+        write!(f, "]")
       }
     }
   }

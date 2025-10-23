@@ -1476,9 +1476,19 @@ impl<'src> GoConverter<'src> {
     let (kvs, stmts): (Vec<(Option<il::Value>, il::Value)>, Vec<Vec<il::Statement>>) =
       elements.into_iter().unzip();
     let tag = self.source_info.register(*node.raw());
+    let items = kvs
+      .into_iter()
+      .map(|(key, value)| {
+        if let Some(k) = key {
+          il::CompositeItem::KV(k, value)
+        } else {
+          il::CompositeItem::Value(value)
+        }
+      })
+      .collect();
     Ok((
       il::Value {
-        kind: il::ValueKind::Exp(il::Expr::Composite { elements: kvs }),
+        kind: il::ValueKind::Exp(il::Expr::Composite { elements: items }),
         extra: ValueExtra::new(None, None),
         tag: Some(tag),
       },
