@@ -116,7 +116,15 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
 fn eval(memory: &mut AMem, value: &Value) -> AValue {
   match &value.kind {
     ValueKind::IntLit(x) => AValue::AInt((*x).into()),
-    ValueKind::NullLit => AValue::null(),
+    ValueKind::NullLit => {
+      let nl = AValue::null();
+      if let AValue::ANull { id } = &nl {
+        memory
+          .history_registry
+          .track_null_creation(*id, &memory.trace, format!("{}", value));
+      }
+      nl
+    }
     ValueKind::Exp(expr) => eval_expr(memory, expr),
     ValueKind::Ident(_) => {
       let loc = eval_loc(memory, value);
@@ -150,15 +158,6 @@ pub fn transfer_stmt(
       let loc = eval_loc(memory, left);
       let val = eval(memory, right);
       if let AValue::ANull { id } = &val {
-        if let Value {
-          kind: ValueKind::NullLit,
-          ..
-        } = right
-        {
-          memory
-            .history_registry
-            .track_null_creation(*id, &memory.trace, format!("{}", right));
-        }
         memory
           .history_registry
           .track_null_assignment(*id, &memory.trace, format!("{}", left));

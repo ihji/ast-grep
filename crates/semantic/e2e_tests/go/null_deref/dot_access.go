@@ -13,7 +13,7 @@ func directFieldOnNilPointer() {
 }
 
 func nestedFieldInnerNil() {
-	// TODO_CREATE[null]: test2
+	// CREATE[null]: test2
 	n := &Node{Value: 42, Next: nil}
 	// FIND[NULL_DEREFERENCE]: test2
 	_ = n.Next.Value // panic: invalid memory address or nil pointer dereference
