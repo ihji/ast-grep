@@ -19,6 +19,9 @@ impl Summary {
     summarize(&mut mem);
     self.parametrized_memories.entry(id).or_default().push(mem);
   }
+  pub fn get_memories(&self, id: &SymbolId) -> Option<&Vec<AMem>> {
+    self.parametrized_memories.get(id)
+  }
 }
 
 fn is_symbolic_root_star_loc(loc: &ALoc) -> bool {

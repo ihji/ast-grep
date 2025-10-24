@@ -182,12 +182,13 @@ pub fn transfer_stmt(
     }
     CfgStatement::Invoke {
       kind: _,
-      callee: _,
+      callee,
       args: _,
       ret_type: _,
       ret_loc: _,
-      tag,
+      tag: _,
     } => {
+      /*
       if let Some(tag) = tag {
         let node = context.source_info.get(*tag);
         if let Some(node) = node {
@@ -201,6 +202,19 @@ pub fn transfer_stmt(
             );
           }
         }
+      } */
+      match callee.extra.symbol_id {
+        Some(id) => {
+          let callee_mems = context.summary.get_memories(&id);
+          if callee_mems.is_some() {
+            println!(
+              "Found {} summaries for function call to {}",
+              callee_mems.unwrap().len(),
+              callee
+            );
+          }
+        }
+        None => {}
       }
     }
     CfgStatement::Assume { value, tag } => {
