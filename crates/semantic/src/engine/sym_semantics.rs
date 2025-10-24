@@ -135,9 +135,20 @@ fn eval(memory: &mut AMem, value: &Value) -> AValue {
   }
 }
 
-fn eval_loc(_memory: &AMem, loc: &Value) -> ALoc {
+fn eval_loc(memory: &mut AMem, loc: &Value) -> ALoc {
   match &loc.kind {
     ValueKind::Ident(name) => ALoc::new_local(name.clone()),
+    ValueKind::Exp(Expr::Deref { value }) => {
+      let ptr_loc = eval_loc(memory, value);
+      let ptr_val = memory.read(&ptr_loc);
+      if let Some(pv) = &ptr_val {
+        let nt = NullTrigger::new(pv.clone(), memory);
+        memory.add_trigger(Box::new(nt));
+      }
+      ptr_val
+        .and_then(|pv| pv.to_aloc())
+        .unwrap_or(ALoc::new_unknown())
+    }
     _ => ALoc::new_unknown(),
   }
 }

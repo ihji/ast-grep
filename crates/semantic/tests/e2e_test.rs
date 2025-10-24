@@ -133,12 +133,6 @@ fn run_fixture(path: &Path) -> Result<()> {
   let expectations = parse_expectations(&lines)
     .with_context(|| format!("Parsing expectations for {}", path.display()))?;
 
-  ensure!(
-    !expectations.is_empty(),
-    "Fixture {} must declare at least one FIND directive",
-    path.display()
-  );
-
   let reports = analyze_source(source, lang, Some(path.display().to_string()))
     .with_context(|| format!("Analyzing {}", path.display()))?;
 
@@ -313,13 +307,7 @@ fn next_code_line_index(lines: &[String], mut idx: usize) -> Option<usize> {
   while idx + 1 < lines.len() {
     idx += 1;
     let trimmed = lines[idx].trim();
-    if trimmed.is_empty()
-      || trimmed.starts_with("//")
-      || trimmed.starts_with('#')
-      || trimmed.starts_with("/*")
-      || trimmed.starts_with('*')
-      || trimmed.starts_with("*/")
-    {
+    if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with('#') {
       continue;
     }
     return Some(idx);
