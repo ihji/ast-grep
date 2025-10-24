@@ -2,6 +2,7 @@ use ast_grep_core::{tree_sitter::StrDoc, AstGrep};
 use ast_grep_language::SupportLang;
 
 use crate::ast::source_info::SourceInfo;
+use crate::engine::summary::Summary;
 use crate::engine::trace::TraceArena;
 use crate::report::reporter::Reporter;
 
@@ -10,6 +11,7 @@ pub struct SessionCtx<'a> {
   pub source_info: SourceInfo<'a>,
   pub file_path: String,
   pub trace_arena: TraceArena,
+  pub summary: Summary,
   pub reporter: Box<dyn Reporter>,
 }
 

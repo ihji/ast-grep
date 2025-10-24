@@ -212,6 +212,7 @@ pub enum InvokeKind {
 pub struct MethodSig {
   pub name: String,
   pub params: Vec<(Type, Option<String>)>,
+  pub id: Option<SymbolId>,
 }
 
 #[derive(Debug, Clone, Drive, PartialEq)]
@@ -350,6 +351,7 @@ impl MethodSig {
         .unwrap_or("unknown_method")
         .to_string(),
       params: Vec::new(),
+      id: None,
     }
   }
 }

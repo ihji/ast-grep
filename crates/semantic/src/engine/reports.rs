@@ -19,14 +19,17 @@ impl Reports {
       finding.with_code_flow(ctx);
     }
   }
+  pub fn clear(&mut self) {
+    self.all.clear();
+  }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FindingKind {
   NullDereference,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CodeFlow {
   thread_flows: Vec<ThreadFlow>,
 }
@@ -119,7 +122,7 @@ impl fmt::Display for CodeFlow {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ThreadFlow {
   locations: Vec<ThreadFlowLocation>,
 }
@@ -139,7 +142,7 @@ impl ThreadFlow {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ThreadFlowLocation {
   location: Pos,
   message: Option<String>,
@@ -178,7 +181,7 @@ impl ThreadFlowLocation {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FindingTrace {
   Flow(CodeFlow),
   TraceWithHistory(Trace, Option<ValueHistory>),
@@ -199,7 +202,7 @@ impl fmt::Display for FindingTrace {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Finding {
   kind: FindingKind,
   location: Pos,

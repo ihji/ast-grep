@@ -150,6 +150,7 @@ fn test_define_statements() {
           (Type::Int, Some("x".to_string())),
           (Type::String, Some("y".to_string())),
         ],
+        id: None,
       },
       body: vec![],
       ret_type: vec![Type::Int],
@@ -509,6 +510,7 @@ fn test_all_define_kinds() {
       sig: MethodSig {
         name: "test".to_string(),
         params: vec![(Type::Int, Some("x".to_string()))],
+        id: None,
       },
       body: vec![],
       ret_type: vec![Type::Int],
@@ -536,6 +538,7 @@ fn test_all_define_kinds() {
       sig: MethodSig {
         name: "Test".to_string(),
         params: vec![(Type::Int, Some("x".to_string()))],
+        id: None,
       },
       body: vec![],
     },

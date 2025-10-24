@@ -254,6 +254,7 @@ impl<'src> GoConverter<'src> {
                 .utf8_text(root.source().as_bytes())?
                 .to_string(),
               params,
+              id: None,
             };
             let ret_type = md
               .result()
@@ -311,6 +312,7 @@ impl<'src> GoConverter<'src> {
                 .utf8_text(root.source().as_bytes())?
                 .to_string(),
               params,
+              id: None,
             };
             let ret_type = fd
               .result()
@@ -1773,6 +1775,7 @@ impl<'src> GoConverter<'src> {
         let method_sig = il::MethodSig {
           name: method_name,
           params,
+          id: None,
         };
         let method_decl = il::DefineKind::Method {
           sig: method_sig,

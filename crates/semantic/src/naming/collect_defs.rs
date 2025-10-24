@@ -53,11 +53,11 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
         ));
       }
       DefineKind::Method {
-        sig: MethodSig { name, .. },
+        sig: MethodSig { name, id, .. },
         body,
         ..
       } => {
-        ctx.register_symbol(
+        let symbol_id = ctx.register_symbol(
           name,
           Namespace::Method,
           DeclKind::Function,
@@ -70,6 +70,7 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
           ScopeKind::Function,
           Some(name),
         ));
+        *id = Some(symbol_id);
       }
       DefineKind::Package(_) => {}
       DefineKind::Constructor { body, .. } => {

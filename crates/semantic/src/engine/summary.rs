@@ -1,10 +1,24 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::engine::domain::{ALoc, ALocKind, AMem, AValue, SExpr, Seg};
 use crate::engine::history::{ValueId, ValueKind};
+use crate::naming::SymbolId;
 
+#[derive(Debug)]
 pub struct Summary {
-  // Placeholder for future summary data
+  parametrized_memories: HashMap<SymbolId, Vec<AMem>>,
+}
+
+impl Summary {
+  pub fn new() -> Self {
+    Self {
+      parametrized_memories: HashMap::new(),
+    }
+  }
+  pub fn add_memory(&mut self, id: SymbolId, mut mem: AMem) {
+    summarize(&mut mem);
+    self.parametrized_memories.entry(id).or_default().push(mem);
+  }
 }
 
 fn is_symbolic_root_star_loc(loc: &ALoc) -> bool {
@@ -98,6 +112,8 @@ fn collect_from_value(val: &AValue, out_locs: &mut HashSet<ALoc>, used_ids: &mut
 }
 
 pub fn summarize(mem: &mut AMem) {
+  mem.findings.clear();
+
   // Build seeds from parameter pointer locations: *(param(...))
   let mut keys_to_keep: HashSet<ALoc> = HashSet::new();
   let mut queue_keys: VecDeque<ALoc> = VecDeque::new();

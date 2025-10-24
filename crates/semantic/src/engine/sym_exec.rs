@@ -31,7 +31,7 @@ fn get_next_tag(cfg: &CFG, next_id: NodeIndex) -> Option<usize> {
   next_first_stmt.and_then(|s| s.get_tag())
 }
 
-pub fn execute_path(
+fn execute_path(
   context: &SessionCtx,
   method_sig: &MethodSig,
   cfg: &CFG,
@@ -81,12 +81,20 @@ pub fn execute_path(
   memory
 }
 
-pub fn execute_method(context: &SessionCtx, method_sig: &MethodSig, cfg: &CFG) -> Reports {
+fn execute_method(context: &mut SessionCtx, method_sig: &MethodSig, cfg: &CFG) -> Reports {
   let mut path_explorer = DumbPathExplorer::new(10);
   let mut findings = Reports::new();
   loop {
     let mem = execute_path(context, method_sig, cfg, &mut path_explorer);
-    findings.all.extend(mem.findings.all);
+    findings.all.extend(mem.findings.all.iter().cloned());
+    if let Some(id) = method_sig.id {
+      context.summary.add_memory(id, mem);
+    } else {
+      println!(
+        "Failed to save output memory. MethodSig has no id: {}",
+        method_sig.name
+      );
+    }
     if !path_explorer.next_path() {
       break;
     }
@@ -94,7 +102,7 @@ pub fn execute_method(context: &SessionCtx, method_sig: &MethodSig, cfg: &CFG) -
   findings
 }
 
-pub fn execute(context: &SessionCtx, cfg: &CFGs) -> Reports {
+pub fn execute(context: &mut SessionCtx, cfg: &CFGs) -> Reports {
   let mut all_findings = Reports::new();
   for (method_sig, cfg) in &cfg.0 {
     println!("Executing method: {}", method_sig.name);
