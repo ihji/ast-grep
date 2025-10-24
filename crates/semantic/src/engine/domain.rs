@@ -13,6 +13,8 @@ use std::fmt::{self, Display, Formatter};
 
 use AValue::*;
 
+static ID_COUNTER: AtomicU32 = AtomicU32::new(1);
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AValue {
   AInt(i64),
@@ -42,13 +44,11 @@ pub enum AValue {
 
 impl AValue {
   pub fn top() -> Self {
-    static TOP_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
-    let id = TOP_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let id = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
     AValue::ATop { id }
   }
   pub fn null() -> Self {
-    static NULL_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
-    let id = NULL_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let id = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
     AValue::ANull { id }
   }
   pub fn is_unknown(&self) -> bool {
@@ -64,6 +64,8 @@ impl AValue {
   pub fn to_aloc(&self) -> Option<ALoc> {
     match self {
       AValue::ARef { location, .. } => Some((**location).clone()),
+      AValue::ASym(SExpr::SStar(loc)) => Some(ALoc::new_sym_star(loc.clone())),
+      AValue::ATop { id } => Some(ALoc::new_unknown_with_id(*id)),
       _ => None,
     }
   }
@@ -140,8 +142,10 @@ impl ALoc {
     }
   }
   pub fn new_unknown() -> Self {
-    static UNKNOWN_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
-    let id = UNKNOWN_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let id = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    ALoc::new_unknown_with_id(id)
+  }
+  pub fn new_unknown_with_id(id: u32) -> Self {
     ALoc {
       kind: ALocKind::AUnknown(id),
       path: vec![],
@@ -150,6 +154,12 @@ impl ALoc {
   pub fn new_param(name: String) -> Self {
     ALoc {
       kind: ALocKind::AParam(name),
+      path: vec![],
+    }
+  }
+  pub fn new_sym_star(loc: ALoc) -> Self {
+    ALoc {
+      kind: ALocKind::ASymStar(Box::new(loc)),
       path: vec![],
     }
   }
@@ -164,6 +174,7 @@ pub enum ALocKind {
   ALocal(String),
   AGlobal(String),
   AParam(String),
+  ASymStar(Box<ALoc>),
   AThis,
   AHeap(String), // site_id
   AUnknown(u32), // id
@@ -290,7 +301,7 @@ impl AMem {
     }
   }
 
-  pub fn read(&self, loc: &ALoc) -> Option<AValue> {
+  pub fn read(&self, loc: &ALoc) -> AValue {
     let v = self.memory.get(loc);
     match v {
       Some(AValue::StructMarker { fields }) => {
@@ -304,15 +315,16 @@ impl AMem {
               path
             },
           };
-          if let Some(field_value) = self.read(&field_loc) {
-            struct_fields.insert(field.clone(), field_value.clone());
-          }
+          let field_value = self.read(&field_loc);
+          struct_fields.insert(field.clone(), field_value);
         }
-        Some(AValue::AStruct {
+        AValue::AStruct {
           fields: struct_fields,
-        })
+        }
       }
-      _ => v.cloned(),
+      Some(v) => v.clone(),
+      None if matches!(loc.kind, ALocKind::AParam(_)) => AValue::ASym(SExpr::SStar(loc.clone())),
+      None => AValue::top(),
     }
   }
 
@@ -460,6 +472,7 @@ impl Display for ALocKind {
       ALocKind::ALocal(s) => write!(f, "local({})", s),
       ALocKind::AGlobal(s) => write!(f, "global({})", s),
       ALocKind::AParam(s) => write!(f, "param({})", s),
+      ALocKind::ASymStar(l) => write!(f, "*( {} )", l),
       ALocKind::AThis => write!(f, "this"),
       ALocKind::AHeap(s) => write!(f, "heap({})", s),
       ALocKind::AUnknown(s) => write!(f, "unknown({})", s),

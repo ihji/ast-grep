@@ -4,8 +4,8 @@ use ast_grep_core::matcher::MatcherExt;
 
 use crate::engine::constraints::Constraint;
 use crate::engine::context::SessionCtx;
-use crate::engine::domain::AValue::*;
 use crate::engine::domain::{ALoc, AMem, AValue, SExpr};
+use crate::engine::domain::{ALocKind, AValue::*};
 use crate::engine::interval::Interval;
 use crate::engine::path_explorer::PathExplorer;
 use crate::engine::triggers::NullTrigger;
@@ -36,12 +36,21 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
       match op {
         UnaryOp::Neg => -value_val,
         UnaryOp::And => {
-          let loc = ALoc::new_unknown();
-          memory.update(loc.clone(), value_val);
-          AValue::ARef {
-            location: Box::new(loc),
-            type_info: None,
-            history: None,
+          let value_loc = eval_loc(memory, value);
+          match value_loc.kind {
+            ALocKind::AUnknown(_) => {
+              memory.update(value_loc.clone(), value_val);
+              AValue::ARef {
+                location: Box::new(value_loc),
+                type_info: None,
+                history: None,
+              }
+            }
+            _ => AValue::ARef {
+              location: Box::new(value_loc),
+              type_info: None,
+              history: None,
+            },
           }
         }
         _ => AValue::top(),
@@ -93,7 +102,7 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
       memory.add_trigger(Box::new(nt));
       let loc_opt = ptr_val.to_aloc();
       if let Some(loc) = loc_opt {
-        memory.read(&loc).unwrap_or(AValue::top())
+        memory.read(&loc)
       } else {
         AValue::top()
       }
@@ -107,7 +116,7 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
         _ => base_val.to_aloc().unwrap_or(ALoc::new_unknown()),
       };
       let loc = base_loc.add_field(field.clone());
-      memory.read(&loc).unwrap_or(AValue::top())
+      memory.read(&loc)
     }
     _ => AValue::top(),
   }
@@ -128,7 +137,7 @@ fn eval(memory: &mut AMem, value: &Value) -> AValue {
     ValueKind::Exp(expr) => eval_expr(memory, expr),
     ValueKind::Ident(_) => {
       let loc = eval_loc(memory, value);
-      memory.read(&loc).unwrap_or(AValue::top())
+      memory.read(&loc)
     }
     ValueKind::CompositeLit(_t, arg) => eval(memory, arg),
     _ => AValue::top(),
@@ -141,13 +150,9 @@ fn eval_loc(memory: &mut AMem, loc: &Value) -> ALoc {
     ValueKind::Exp(Expr::Deref { value }) => {
       let ptr_loc = eval_loc(memory, value);
       let ptr_val = memory.read(&ptr_loc);
-      if let Some(pv) = &ptr_val {
-        let nt = NullTrigger::new(pv.clone(), memory);
-        memory.add_trigger(Box::new(nt));
-      }
-      ptr_val
-        .and_then(|pv| pv.to_aloc())
-        .unwrap_or(ALoc::new_unknown())
+      let nt = NullTrigger::new(ptr_val.clone(), memory);
+      memory.add_trigger(Box::new(nt));
+      ptr_val.to_aloc().unwrap_or(ALoc::new_unknown())
     }
     _ => ALoc::new_unknown(),
   }
