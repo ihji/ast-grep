@@ -3,9 +3,16 @@ use std::collections::{HashSet, VecDeque};
 use crate::engine::domain::{ALoc, ALocKind, AMem, AValue, SExpr, Seg};
 use crate::engine::history::{ValueId, ValueKind};
 
-fn is_param_star_loc(loc: &ALoc) -> bool {
+pub struct Summary {
+  // Placeholder for future summary data
+}
+
+fn is_symbolic_root_star_loc(loc: &ALoc) -> bool {
   match &loc.kind {
-    ALocKind::ASymStar(inner) => matches!(inner.kind, ALocKind::AParam(_)),
+    ALocKind::ASymStar(inner) => matches!(
+      inner.kind,
+      ALocKind::AParam(_) | ALocKind::AGlobal(_) | ALocKind::AThis
+    ),
     _ => false,
   }
 }
@@ -96,7 +103,7 @@ pub fn summarize(mem: &mut AMem) {
   let mut queue_keys: VecDeque<ALoc> = VecDeque::new();
 
   for key in mem.memory.keys() {
-    if is_param_star_loc(key) {
+    if is_symbolic_root_star_loc(key) {
       if keys_to_keep.insert(key.clone()) {
         queue_keys.push_back(key.clone());
       }
@@ -224,5 +231,50 @@ mod tests {
       .history_registry
       .get_history(ValueKind::Null, null_id)
       .is_none());
+  }
+
+  #[test]
+  fn test_summarize_keeps_global_and_this_roots() {
+    let mut mem = AMem::new();
+
+    // *global(G) -> &heap(h1)
+    let star_global = ALoc::new_sym_star(ALoc {
+      kind: ALocKind::AGlobal("G".to_string()),
+      path: vec![],
+    });
+    let heap_h1 = ALoc {
+      kind: ALocKind::AHeap("h1".to_string()),
+      path: vec![],
+    };
+    mem.update(
+      star_global.clone(),
+      AValue::ARef {
+        location: Box::new(heap_h1.clone()),
+        type_info: None,
+        history: None,
+      },
+    );
+    mem.update(heap_h1.clone(), AValue::AInt(1));
+
+    // *this -> ATop
+    let star_this = ALoc::new_sym_star(ALoc {
+      kind: ALocKind::AThis,
+      path: vec![],
+    });
+    mem.update(star_this.clone(), AValue::top());
+
+    // local(waste) -> 99, should be removed
+    let local_waste = ALoc {
+      kind: ALocKind::ALocal("waste".to_string()),
+      path: vec![],
+    };
+    mem.update(local_waste.clone(), AValue::AInt(99));
+
+    summarize(&mut mem);
+
+    assert!(mem.memory.get(&star_global).is_some());
+    assert!(mem.memory.get(&heap_h1).is_some());
+    assert!(mem.memory.get(&star_this).is_some());
+    assert!(mem.memory.get(&local_waste).is_none());
   }
 }
