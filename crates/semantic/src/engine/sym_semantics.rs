@@ -284,6 +284,9 @@ pub fn transfer_block(
   memory: &mut AMem,
 ) {
   for stmt in &block.stmts {
+    if path_explorer.is_done() {
+      break;
+    }
     transfer_stmt(context, path_explorer, stmt, memory);
   }
 }

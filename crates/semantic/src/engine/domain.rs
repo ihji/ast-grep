@@ -11,7 +11,6 @@ use crate::engine::triggers::{Checked, Trigger, Triggers};
 use crate::il::{MethodSig, Type};
 use std::fmt::{self, Display, Formatter};
 
-use bitvec::vec;
 use AValue::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -25,6 +25,10 @@ impl Constraints {
 
   fn check(&self, val: &AValue, constraint: &Constraint) -> bool {
     if let Some(existing) = self.preds.get(val) {
+      println!(
+        "Checking constraint {:?} against existing {:?}",
+        constraint, existing
+      );
       match (existing, constraint) {
         (Constraint::IsNull, Constraint::IsNotNull)
         | (Constraint::IsNotNull, Constraint::IsNull) => false,
@@ -44,7 +48,9 @@ impl Constraints {
   }
 
   pub fn add_constraint(&mut self, val: AValue, constraint: Constraint) -> bool {
+    println!("Adding constraint {:?} to value {:?}", constraint, val);
     if !self.check(&val, &constraint) {
+      println!("Constraint {:?} is not satisfied by {:?}", constraint, val);
       return false;
     }
     self.preds.insert(val, constraint);
