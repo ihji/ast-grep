@@ -96,6 +96,10 @@ impl HistoryRegistry {
     }
   }
 
+  pub fn retain_only(&mut self, keep: &std::collections::HashSet<ValueId>) {
+    self.histories.retain(|k, _| keep.contains(k));
+  }
+
   fn register_creation(
     &mut self,
     kind: ValueKind,
