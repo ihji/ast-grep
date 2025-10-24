@@ -5,6 +5,7 @@ pub mod history;
 pub mod interval;
 pub mod path_explorer;
 pub mod reports;
+pub mod summary;
 pub mod sym_exec;
 pub mod sym_semantics;
 pub mod trace;
