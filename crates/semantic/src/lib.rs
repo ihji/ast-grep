@@ -41,7 +41,7 @@ pub fn analyze_source(
     let mut naming_context = NamingContext::new();
     naming::collect_pgm(&mut naming_context, &mut converter.program);
     println!("Naming Context: {:#?}", naming_context);
-    naming::annotate_pgm(&mut naming_context, &mut converter.program);
+    let call_graph = naming::annotate_pgm(&mut naming_context, &mut converter.program);
     println!("IL: {}", &converter.program);
     let mut cfgs = CFGs::new();
     cfgs.insert(converter.program);
@@ -58,7 +58,7 @@ pub fn analyze_source(
       summary: Summary::new(),
       reporter: Box::new(CliReporter {}),
     };
-    let mut findings = execute(&mut context, &cfgs);
+    let mut findings = execute(&mut context, &call_graph, &cfgs);
     findings.finalize(&context);
     Ok(findings)
   } else {

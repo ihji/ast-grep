@@ -7,6 +7,7 @@ use crate::engine::path_explorer::{DumbPathExplorer, PathExplorer};
 use crate::engine::reports::Reports;
 use crate::engine::sym_semantics::transfer_block;
 use crate::il::{CFGs, CfgEdgeKind, MethodSig, CFG};
+use crate::naming::CallGraph;
 
 fn get_next_tag(cfg: &CFG, next_id: NodeIndex) -> Option<usize> {
   let mut next_first_stmt = None;
@@ -102,7 +103,7 @@ fn execute_method(context: &mut SessionCtx, method_sig: &MethodSig, cfg: &CFG) -
   findings
 }
 
-pub fn execute(context: &mut SessionCtx, cfg: &CFGs) -> Reports {
+pub fn execute(context: &mut SessionCtx, _call_graph: &CallGraph, cfg: &CFGs) -> Reports {
   let mut all_findings = Reports::new();
   for (method_sig, cfg) in &cfg.0 {
     println!("Executing method: {}", method_sig.name);
