@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use petgraph::graph::DiGraph;
 
 use crate::{
@@ -8,7 +10,19 @@ use crate::{
   },
 };
 
-pub type CallGraph = DiGraph<SymbolId, ()>;
+pub struct CallGraph {
+  pub graph: DiGraph<SymbolId, ()>,
+  pub symbol_id_to_sig: HashMap<SymbolId, MethodSig>,
+}
+
+impl CallGraph {
+  pub fn new() -> Self {
+    CallGraph {
+      graph: DiGraph::new(),
+      symbol_id_to_sig: HashMap::new(),
+    }
+  }
+}
 
 pub fn annotate_pgm(ctx: &mut NamingContext, pgm: &mut il::Program) -> CallGraph {
   let mut call_graph = CallGraph::new();
@@ -126,9 +140,9 @@ fn annotate_value(
         }
         if namespace == Namespace::Method {
           if let Some(caller_id) = parent_symbol_id {
-            let caller = call_graph.add_node(caller_id);
-            let callee = call_graph.add_node(symbol.id);
-            call_graph.add_edge(caller, callee, ());
+            let caller = call_graph.graph.add_node(caller_id);
+            let callee = call_graph.graph.add_node(symbol.id);
+            call_graph.graph.add_edge(caller, callee, ());
           }
         }
       }

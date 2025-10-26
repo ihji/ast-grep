@@ -1,5 +1,7 @@
+use bitvec::order;
+use petgraph::algo::{scc, tarjan_scc};
 use petgraph::graph::NodeIndex;
-use petgraph::visit::EdgeRef;
+use petgraph::visit::{DfsPostOrder, EdgeRef, Walker};
 
 use crate::engine::context::SessionCtx;
 use crate::engine::domain::AMem;
@@ -7,7 +9,7 @@ use crate::engine::path_explorer::{DumbPathExplorer, PathExplorer};
 use crate::engine::reports::Reports;
 use crate::engine::sym_semantics::transfer_block;
 use crate::il::{CFGs, CfgEdgeKind, MethodSig, CFG};
-use crate::naming::CallGraph;
+use crate::naming::{CallGraph, SymbolId};
 
 fn get_next_tag(cfg: &CFG, next_id: NodeIndex) -> Option<usize> {
   let mut next_first_stmt = None;
@@ -103,9 +105,56 @@ fn execute_method(context: &mut SessionCtx, method_sig: &MethodSig, cfg: &CFG) -
   findings
 }
 
-pub fn execute(context: &mut SessionCtx, _call_graph: &CallGraph, cfg: &CFGs) -> Reports {
+fn scc_order(call_graph: &CallGraph) -> Vec<NodeIndex> {
+  let sccs = tarjan_scc(&call_graph.graph);
+  let mut order = Vec::new();
+  for scc in sccs.iter() {
+    // TODO: find best order in SCC
+    for node in scc {
+      order.push(*node);
+    }
+  }
+  order
+}
+
+pub fn execute(
+  context: &mut SessionCtx,
+  entry_id: Option<SymbolId>,
+  call_graph: &CallGraph,
+  cfg: &CFGs,
+) -> Reports {
   let mut all_findings = Reports::new();
-  for (method_sig, cfg) in &cfg.0 {
+  let order_node_idx = if let Some(entry_id) = entry_id {
+    if let Some(entry_idx) = call_graph
+      .graph
+      .raw_nodes()
+      .iter()
+      .position(|node| node.weight == entry_id)
+      .map(NodeIndex::new)
+    {
+      let dfs = DfsPostOrder::new(&call_graph.graph, entry_idx);
+      dfs.iter(&call_graph.graph).collect::<Vec<_>>()
+    } else {
+      scc_order(call_graph)
+    }
+  } else {
+    scc_order(call_graph)
+  };
+  let order_symbol_ids: Vec<SymbolId> = order_node_idx
+    .iter()
+    .map(|idx| call_graph.graph[*idx])
+    .collect();
+  let order: Vec<(SymbolId, &(MethodSig, CFG))> = order_symbol_ids
+    .iter()
+    .filter_map(|id| cfg.0.get(id).map(|cfg| (*id, cfg)))
+    .collect();
+
+  println!("Analyze order:");
+  for (id, (method_sig, _)) in &order {
+    println!("{}: {}", id, method_sig.name);
+  }
+
+  for (_, (method_sig, cfg)) in order {
     println!("Executing method: {}", method_sig.name);
     let findings = execute_method(context, method_sig, cfg);
     all_findings.all.extend(findings.all);

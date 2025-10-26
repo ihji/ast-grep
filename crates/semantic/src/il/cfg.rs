@@ -6,8 +6,9 @@ use petgraph::{
   visit::EdgeRef,
 };
 
-use crate::il::{
-  DefineKind, InvokeKind, MethodSig, Program, Statement, Type, Value, ValueExtra, ValueKind,
+use crate::{
+  il::{DefineKind, InvokeKind, MethodSig, Program, Statement, Type, Value, ValueExtra, ValueKind},
+  naming::SymbolId,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -181,7 +182,7 @@ impl PartialEq for CfgEdgeKind {
 
 pub type CfgGraph = DiGraph<BasicBlock, CfgEdgeKind>;
 
-pub struct CFGs(pub HashMap<MethodSig, CFG>);
+pub struct CFGs(pub HashMap<SymbolId, (MethodSig, CFG)>);
 
 #[derive(Visitor)]
 #[visitor(DefineKind(enter))]
@@ -193,7 +194,10 @@ impl MethodVisitor<'_> {
   fn enter_define_kind(&mut self, define: &crate::il::DefineKind) {
     if let DefineKind::Method { sig, body, .. } = define {
       println!("Method: {}", sig.name);
-      self.cfgs.0.insert(sig.clone(), CFG::convert(body));
+      self.cfgs.0.insert(
+        sig.id.expect("method sig should have symbol id"),
+        (sig.clone(), CFG::convert(body)),
+      );
     }
   }
 }
@@ -203,9 +207,11 @@ impl CFGs {
     CFGs(HashMap::new())
   }
   pub fn insert(&mut self, pgm: Program) {
-    let top_sig = MethodSig::from_path(&pgm.path);
     let cfg = CFG::convert(&pgm.statements);
-    self.0.insert(top_sig, cfg);
+    self.0.insert(
+      pgm.symbol_id.expect("top sig should have symbol id"),
+      (MethodSig::from_path(&pgm.path), cfg),
+    );
     let mut visitor = MethodVisitor { cfgs: self };
     pgm.drive(&mut visitor);
   }

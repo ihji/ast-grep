@@ -22,6 +22,7 @@ pub enum Namespace {
   Value,
   Method,
   Macro,
+  File,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,6 +45,7 @@ pub enum DeclKind {
   Interface,
   Module,
   Package,
+  File,
 }
 
 #[derive(Debug)]

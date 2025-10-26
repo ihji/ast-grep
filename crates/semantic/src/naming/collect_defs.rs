@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use crate::{
   il::{DefineKind, MethodSig, Program, Statement},
   naming::{
@@ -6,10 +8,29 @@ use crate::{
   },
 };
 
+static ID_COUNTER: AtomicU32 = AtomicU32::new(1);
+
 pub fn collect_pgm(ctx: &mut NamingContext, pgm: &mut Program) {
   ctx.clear_scope_stack();
   let pgm_scope_id = ctx.enter_scope(ScopeKind::File, pgm.path.to_str());
+  let pgm_name = pgm
+    .path
+    .canonicalize()
+    .ok()
+    .and_then(|p| p.to_str().map(|s| s.to_string()))
+    .unwrap_or_else(|| {
+      let id = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+      format!("__file_unnamed_{}", id)
+    });
+  let pgm_symbol_id = ctx.register_symbol(
+    pgm_name.as_str(),
+    Namespace::File,
+    DeclKind::File,
+    Visibility::Public,
+    None,
+  );
   pgm.scope_id = Some(pgm_scope_id);
+  pgm.symbol_id = Some(pgm_symbol_id);
   for stmt in &mut pgm.statements {
     collect_stmt(ctx, stmt);
   }

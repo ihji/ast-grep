@@ -46,8 +46,11 @@ pub fn analyze_source(
     let mut cfgs = CFGs::new();
     cfgs.insert(converter.program);
     for cfg in &cfgs.0 {
-      println!("CFG for method: {}", cfg.0.name);
-      println!("{}", Dot::with_config(&cfg.1.graph, &[Config::EdgeNoLabel]));
+      println!("CFG for method: {}", cfg.1 .0.name);
+      println!(
+        "{}",
+        Dot::with_config(&cfg.1 .1.graph, &[Config::EdgeNoLabel])
+      );
     }
     let mut context = SessionCtx {
       /* TODO: Refactor context. */
@@ -58,7 +61,7 @@ pub fn analyze_source(
       summary: Summary::new(),
       reporter: Box::new(CliReporter {}),
     };
-    let mut findings = execute(&mut context, &call_graph, &cfgs);
+    let mut findings = execute(&mut context, None, &call_graph, &cfgs);
     findings.finalize(&context);
     Ok(findings)
   } else {
