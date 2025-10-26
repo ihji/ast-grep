@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
 
-use ast_grep_core::matcher::MatcherExt;
-
 use crate::engine::constraints::Constraint;
 use crate::engine::context::SessionCtx;
 use crate::engine::domain::{ALoc, AMem, AValue, SExpr};
@@ -9,7 +7,7 @@ use crate::engine::domain::{ALocKind, AValue::*};
 use crate::engine::interval::Interval;
 use crate::engine::path_explorer::PathExplorer;
 use crate::engine::triggers::NullTrigger;
-use crate::il::{BasicBlock, CfgStatement, CompositeItem, Type, ValueKind};
+use crate::il::{BasicBlock, CfgStatement, CompositeItem, ValueKind};
 use crate::il::{BinaryOp, Expr, UnaryOp, Value};
 
 fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {

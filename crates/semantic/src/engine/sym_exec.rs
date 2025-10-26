@@ -1,5 +1,6 @@
-use bitvec::order;
-use petgraph::algo::{scc, tarjan_scc};
+use std::collections::HashSet;
+
+use petgraph::algo::tarjan_scc;
 use petgraph::graph::NodeIndex;
 use petgraph::visit::{DfsPostOrder, EdgeRef, Walker};
 
@@ -124,6 +125,7 @@ pub fn execute(
   cfg: &CFGs,
 ) -> Reports {
   let mut all_findings = Reports::new();
+
   let order_node_idx = if let Some(entry_id) = entry_id {
     if let Some(entry_idx) = call_graph
       .graph
@@ -133,7 +135,14 @@ pub fn execute(
       .map(NodeIndex::new)
     {
       let dfs = DfsPostOrder::new(&call_graph.graph, entry_idx);
-      dfs.iter(&call_graph.graph).collect::<Vec<_>>()
+      let mut output = dfs.iter(&call_graph.graph).collect::<Vec<_>>();
+      let reachable = output.iter().cloned().collect::<HashSet<_>>();
+      for node in call_graph.graph.node_indices() {
+        if !reachable.contains(&node) {
+          output.push(node);
+        }
+      }
+      output
     } else {
       scc_order(call_graph)
     }

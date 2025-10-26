@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use petgraph::graph::DiGraph;
+use petgraph::graph::{DiGraph, NodeIndex};
 
 use crate::{
   il::{self, MethodSig},
@@ -12,15 +12,34 @@ use crate::{
 
 pub struct CallGraph {
   pub graph: DiGraph<SymbolId, ()>,
-  pub symbol_id_to_sig: HashMap<SymbolId, MethodSig>,
+  pub symbol_id_to_node_idx: HashMap<SymbolId, NodeIndex>,
 }
 
 impl CallGraph {
   pub fn new() -> Self {
     CallGraph {
       graph: DiGraph::new(),
-      symbol_id_to_sig: HashMap::new(),
+      symbol_id_to_node_idx: HashMap::new(),
     }
+  }
+
+  pub fn add_node(&mut self, symbol_id: SymbolId) {
+    self
+      .symbol_id_to_node_idx
+      .entry(symbol_id)
+      .or_insert_with(|| self.graph.add_node(symbol_id));
+  }
+
+  pub fn add_edge(&mut self, caller: SymbolId, callee: SymbolId) {
+    let caller_idx = *self
+      .symbol_id_to_node_idx
+      .entry(caller)
+      .or_insert_with(|| self.graph.add_node(caller));
+    let callee_idx = *self
+      .symbol_id_to_node_idx
+      .entry(callee)
+      .or_insert_with(|| self.graph.add_node(callee));
+    self.graph.add_edge(caller_idx, callee_idx, ());
   }
 }
 
@@ -52,6 +71,9 @@ fn annotate_stmt(
         body,
         ..
       } => {
+        if let Some(id) = id {
+          call_graph.add_node(*id);
+        }
         for stmt in body {
           annotate_stmt(ctx, call_graph, *scope_id, *id, stmt);
         }
@@ -140,9 +162,7 @@ fn annotate_value(
         }
         if namespace == Namespace::Method {
           if let Some(caller_id) = parent_symbol_id {
-            let caller = call_graph.graph.add_node(caller_id);
-            let callee = call_graph.graph.add_node(symbol.id);
-            call_graph.graph.add_edge(caller, callee, ());
+            call_graph.add_edge(caller_id, symbol.id);
           }
         }
       }
