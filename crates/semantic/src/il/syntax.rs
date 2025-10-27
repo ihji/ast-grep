@@ -211,7 +211,7 @@ pub enum InvokeKind {
 #[derive(Debug, Clone, Drive, PartialEq, Eq, Hash)]
 pub struct MethodSig {
   pub name: String,
-  pub params: Vec<(Type, Option<String>)>,
+  pub params: Vec<(Type, String)>,
   pub id: Option<SymbolId>,
 }
 

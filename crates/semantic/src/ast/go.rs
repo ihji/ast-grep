@@ -233,7 +233,7 @@ impl<'src> GoConverter<'src> {
                       ..
                     },
                   tag: _,
-                } => Some((t, Some(name))),
+                } => Some((t, name)),
                 _ => {
                   eprintln!("Expected Var value in method params, got: {:?}", v);
                   None
@@ -291,7 +291,7 @@ impl<'src> GoConverter<'src> {
                       ..
                     },
                   tag: _,
-                } => Some((t, Some(name))),
+                } => Some((t, name)),
                 _ => {
                   eprintln!("Expected Var value in function params, got: {:?}", v);
                   None
@@ -1757,10 +1757,10 @@ impl<'src> GoConverter<'src> {
                   ..
                 },
               ..
-            } => Ok((t.clone(), Some(name.clone()))),
+            } => Ok((t.clone(), name.clone())),
             _ => Err(anyhow!("Unsupported parameter type")),
           })
-          .collect::<Result<Vec<(il::Type, Option<String>)>>>()?;
+          .collect::<Result<Vec<(il::Type, String)>>>()?;
         let ret_type = fl
           .result()
           .transpose()

@@ -294,10 +294,8 @@ impl AMem {
 
   pub fn initialize(&mut self, sig: &MethodSig) {
     for (_ty, name) in &sig.params {
-      if let Some(name) = name {
-        let loc = ASym(SExpr::SStar(ALoc::new_param(name.clone())));
-        self.memory.insert(ALoc::new_local(name.clone()), loc);
-      }
+      let loc = ASym(SExpr::SStar(ALoc::new_param(name.clone())));
+      self.memory.insert(ALoc::new_local(name.clone()), loc);
     }
   }
 

@@ -85,25 +85,26 @@ fn execute_path(
   memory
 }
 
-fn execute_method(context: &mut SessionCtx, method_sig: &MethodSig, cfg: &CFG) -> Reports {
+fn execute_method(
+  context: &mut SessionCtx,
+  method_sig: &MethodSig,
+  cfg: &CFG,
+) -> anyhow::Result<Reports> {
   let mut path_explorer = DumbPathExplorer::new(10);
   let mut findings = Reports::new();
+  let id = method_sig
+    .id
+    .ok_or_else(|| anyhow::anyhow!("Cannot execute method without id: {}", method_sig.name))?;
+  context.summary.create_summary(id, method_sig);
   loop {
     let mem = execute_path(context, method_sig, cfg, &mut path_explorer);
     findings.all.extend(mem.findings.all.iter().cloned());
-    if let Some(id) = method_sig.id {
-      context.summary.add_memory(id, mem);
-    } else {
-      println!(
-        "Failed to save output memory. MethodSig has no id: {}",
-        method_sig.name
-      );
-    }
+    context.summary.add_memory(id, mem)?;
     if !path_explorer.next_path() {
       break;
     }
   }
-  findings
+  Ok(findings)
 }
 
 fn scc_order(call_graph: &CallGraph) -> Vec<NodeIndex> {
@@ -166,7 +167,13 @@ pub fn execute(
   for (_, (method_sig, cfg)) in order {
     println!("Executing method: {}", method_sig.name);
     let findings = execute_method(context, method_sig, cfg);
-    all_findings.all.extend(findings.all);
+    match findings {
+      Err(e) => {
+        println!("Error during execution of {}: {:?}", method_sig.name, e);
+        continue;
+      }
+      Ok(f) => all_findings.all.extend(f.all),
+    };
   }
   all_findings
 }

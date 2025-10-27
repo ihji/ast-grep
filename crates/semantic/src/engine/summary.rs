@@ -2,25 +2,48 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::engine::domain::{ALoc, ALocKind, AMem, AValue, SExpr, Seg};
 use crate::engine::history::{ValueId, ValueKind};
+use crate::il::MethodSig;
 use crate::naming::SymbolId;
 
 #[derive(Debug)]
-pub struct Summary {
-  parametrized_memories: HashMap<SymbolId, Vec<AMem>>,
+pub struct SummaryRegistry {
+  summaries: HashMap<SymbolId, Summary>,
 }
 
-impl Summary {
+#[derive(Debug)]
+pub struct Summary {
+  parametrized_memories: Vec<AMem>,
+  method_sig: MethodSig,
+}
+
+impl SummaryRegistry {
   pub fn new() -> Self {
     Self {
-      parametrized_memories: HashMap::new(),
+      summaries: HashMap::new(),
     }
   }
-  pub fn add_memory(&mut self, id: SymbolId, mut mem: AMem) {
+  pub fn create_summary(&mut self, id: SymbolId, sig: &MethodSig) {
+    self.summaries.insert(
+      id,
+      Summary {
+        parametrized_memories: vec![],
+        method_sig: sig.clone(),
+      },
+    );
+  }
+  pub fn add_memory(&mut self, id: SymbolId, mut mem: AMem) -> anyhow::Result<()> {
     summarize(&mut mem);
-    self.parametrized_memories.entry(id).or_default().push(mem);
+    self
+      .summaries
+      .get_mut(&id)
+      .map(|s| s.parametrized_memories.push(mem))
+      .ok_or_else(|| anyhow::anyhow!("Summary not found"))
   }
   pub fn get_memories(&self, id: &SymbolId) -> Option<&Vec<AMem>> {
-    self.parametrized_memories.get(id)
+    self.summaries.get(id).map(|s| &s.parametrized_memories)
+  }
+  pub fn get_method_sig(&self, id: &SymbolId) -> Option<&MethodSig> {
+    self.summaries.get(id).map(|s| &s.method_sig)
   }
 }
 

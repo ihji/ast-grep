@@ -172,10 +172,7 @@ impl PrettyPrinter {
     let params = sig
       .params
       .iter()
-      .map(|(t, name)| match name {
-        Some(n) => format!("{}: {}", n, Self::print_type(t)),
-        None => Self::print_type(t),
-      })
+      .map(|(t, name)| format!("{}: {}", name, Self::print_type(t)))
       .collect::<Vec<_>>()
       .join(", ");
     format!("{}({})", sig.name, params)

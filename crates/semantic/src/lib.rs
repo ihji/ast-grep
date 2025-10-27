@@ -8,7 +8,7 @@ pub mod report;
 use std::path::PathBuf;
 
 use crate::{
-  engine::{reports::Reports, summary::Summary, sym_exec::execute},
+  engine::{reports::Reports, summary::SummaryRegistry, sym_exec::execute},
   naming::NamingContext,
 };
 use ast_grep_core::AstGrep;
@@ -58,7 +58,7 @@ pub fn analyze_source(
       source_info: converter.source_info,
       file_path: file_path.unwrap_or_else(|| "unknown".to_string()),
       trace_arena: TraceArena::new(),
-      summary: Summary::new(),
+      summary: SummaryRegistry::new(),
       reporter: Box::new(CliReporter {}),
     };
     let mut findings = execute(&mut context, None, &call_graph, &cfgs);
