@@ -5,7 +5,7 @@ use petgraph::graph::NodeIndex;
 use petgraph::visit::{DfsPostOrder, EdgeRef, Walker};
 
 use crate::engine::context::SessionCtx;
-use crate::engine::domain::AMem;
+use crate::engine::domain::AState;
 use crate::engine::path_explorer::{DumbPathExplorer, PathExplorer};
 use crate::engine::reports::Reports;
 use crate::engine::sym_semantics::transfer_block;
@@ -40,10 +40,10 @@ fn execute_path(
   method_sig: &MethodSig,
   cfg: &CFG,
   path_explorer: &mut impl PathExplorer,
-) -> AMem {
+) -> AState {
   println!("Symbolic execution engine");
   let mut next_id = Some(cfg.entry);
-  let mut memory = AMem::new();
+  let mut memory = AState::new();
   memory.initialize(method_sig);
   while let Some(id) = next_id {
     let current_block = &cfg.graph[id];

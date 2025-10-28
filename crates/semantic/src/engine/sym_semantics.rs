@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::engine::constraints::Constraint;
 use crate::engine::context::SessionCtx;
-use crate::engine::domain::{ALoc, AMem, AValue, SExpr};
+use crate::engine::domain::{ALoc, AState, AValue, SExpr};
 use crate::engine::domain::{ALocKind, AValue::*};
 use crate::engine::interval::Interval;
 use crate::engine::path_explorer::PathExplorer;
@@ -11,7 +11,7 @@ use crate::engine::triggers::NullTrigger;
 use crate::il::{BasicBlock, CfgStatement, CompositeItem, ValueKind};
 use crate::il::{BinaryOp, Expr, UnaryOp, Value};
 
-fn eval_expr(context: &SessionCtx, memory: &mut AMem, expr: &Expr) -> AValue {
+fn eval_expr(context: &SessionCtx, memory: &mut AState, expr: &Expr) -> AValue {
   match expr {
     Expr::BinOp { op, left, right } => {
       let left_val = eval(context, memory, left);
@@ -121,7 +121,7 @@ fn eval_expr(context: &SessionCtx, memory: &mut AMem, expr: &Expr) -> AValue {
   }
 }
 
-fn eval(context: &SessionCtx, memory: &mut AMem, value: &Value) -> AValue {
+fn eval(context: &SessionCtx, memory: &mut AState, value: &Value) -> AValue {
   match &value.kind {
     ValueKind::IntLit(x) => AValue::AInt((*x).into()),
     ValueKind::NullLit => {
@@ -143,7 +143,7 @@ fn eval(context: &SessionCtx, memory: &mut AMem, value: &Value) -> AValue {
   }
 }
 
-fn eval_loc(context: &SessionCtx, memory: &mut AMem, loc: &Value) -> ALoc {
+fn eval_loc(context: &SessionCtx, memory: &mut AState, loc: &Value) -> ALoc {
   match &loc.kind {
     ValueKind::Ident(name) => ALoc::new_local(name.clone()),
     ValueKind::Exp(Expr::Deref { value }) => {
@@ -161,7 +161,7 @@ pub fn transfer_stmt(
   context: &SessionCtx,
   path_explorer: &mut impl PathExplorer,
   stmt: &CfgStatement,
-  memory: &mut AMem,
+  memory: &mut AState,
 ) {
   memory.trace.update_pos(context, &stmt.get_tag());
   match stmt {
@@ -216,7 +216,7 @@ pub fn transfer_stmt(
               .map(|arg| eval(context, memory, arg))
               .collect::<Vec<_>>();
             for cmem in &callee_sum.parametrized_memories {
-              let after = summary::substitute(&callee_sum.method_sig, &param_values, cmem);
+              let after = summary::substitute(&callee_sum.method_sig, &param_values, &cmem.memory);
               println!("Applying summary memory: {:?}", after);
             }
           } else {
@@ -309,7 +309,7 @@ pub fn transfer_block(
   context: &SessionCtx,
   path_explorer: &mut impl PathExplorer,
   block: &BasicBlock,
-  memory: &mut AMem,
+  memory: &mut AState,
 ) {
   for stmt in &block.stmts {
     if path_explorer.is_done() {

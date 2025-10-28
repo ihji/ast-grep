@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::engine::domain::{ALoc, ALocKind, AMem, AValue, SExpr, Seg};
+use crate::engine::domain::{ALoc, ALocKind, AMem, AState, AValue, SExpr, Seg};
 use crate::engine::history::{ValueId, ValueKind};
 use crate::il::MethodSig;
 use crate::naming::SymbolId;
@@ -12,7 +12,7 @@ pub struct SummaryRegistry {
 
 #[derive(Debug)]
 pub struct Summary {
-  pub parametrized_memories: Vec<AMem>,
+  pub parametrized_memories: Vec<AState>,
   pub method_sig: MethodSig,
 }
 
@@ -31,7 +31,7 @@ impl SummaryRegistry {
       },
     );
   }
-  pub fn add_memory(&mut self, id: SymbolId, mut mem: AMem) -> anyhow::Result<()> {
+  pub fn add_memory(&mut self, id: SymbolId, mut mem: AState) -> anyhow::Result<()> {
     summarize(&mut mem);
     self
       .summaries
@@ -134,7 +134,7 @@ fn collect_from_value(val: &AValue, out_locs: &mut HashSet<ALoc>, used_ids: &mut
   }
 }
 
-pub fn summarize(mem: &mut AMem) {
+pub fn summarize(mem: &mut AState) {
   mem.findings.clear();
 
   // Build seeds from parameter pointer locations: *(param(...))
@@ -293,14 +293,14 @@ fn substitute_value(val: &AValue, param_map: &HashMap<String, AValue>) -> AValue
   }
 }
 
-pub fn substitute(sig: &MethodSig, args: &[AValue], mem: &AMem) -> HashMap<ALoc, AValue> {
+pub fn substitute(sig: &MethodSig, args: &[AValue], mem: &AMem) -> AMem {
   let mut param_map: HashMap<String, AValue> = HashMap::new();
   for ((_, name), arg) in sig.params.iter().zip(args.iter()) {
     param_map.insert(name.clone(), arg.clone());
   }
 
-  let mut new_memory = HashMap::new();
-  for (k, v) in mem.memory.iter() {
+  let mut new_memory = AMem::new();
+  for (k, v) in mem.iter() {
     let new_k = substitute_aloc(k, &param_map);
     let new_v = substitute_value(v, &param_map);
     new_memory.insert(new_k, new_v);
@@ -315,7 +315,7 @@ mod tests {
 
   #[test]
   fn test_summarize_keeps_param_star_and_drops_local() {
-    let mut mem = AMem::new();
+    let mut mem = AState::new();
 
     // local(x) -> 10
     let local_x = ALoc {
@@ -336,7 +336,7 @@ mod tests {
 
   #[test]
   fn test_summarize_transitive_ref_and_prune_history() {
-    let mut mem = AMem::new();
+    let mut mem = AState::new();
 
     // *param(x) -> &heap(xx)
     let star_param_x = ALoc::new_sym_star(ALoc::new_param("x".to_string()));
@@ -398,7 +398,7 @@ mod tests {
 
   #[test]
   fn test_summarize_keeps_global_and_this_roots() {
-    let mut mem = AMem::new();
+    let mut mem = AState::new();
 
     // *global(G) -> &heap(h1)
     let star_global = ALoc::new_sym_star(ALoc {
@@ -444,7 +444,7 @@ mod tests {
   #[test]
   fn test_substitute_param_deref_into_local() {
     // Setup a parametrized summary mem: *(param(pp)) -> null
-    let mut mem = AMem::new();
+    let mut mem = AState::new();
     let star_pp = ALoc::new_sym_star(ALoc::new_param("pp".to_string()));
     let null_v = AValue::null();
     mem.update(star_pp.clone(), null_v.clone());
@@ -473,7 +473,7 @@ mod tests {
       history: None,
     };
 
-    substitute(&sig, &[arg_x, arg_pp], &mut mem);
+    substitute(&sig, &[arg_x, arg_pp], &mut mem.memory);
 
     // After substitution: local(p) -> null
     assert!(mem.memory.get(&loc_p).is_some());
@@ -485,7 +485,7 @@ mod tests {
   #[test]
   fn test_substitute_nested_expression() {
     // mem: *(param(pp)) -> 1 + *param(x)
-    let mut mem = AMem::new();
+    let mut mem = AState::new();
     let star_pp = ALoc::new_sym_star(ALoc::new_param("pp".to_string()));
     let expr = AValue::ASym(SExpr::SAdd(
       Box::new(AValue::AInt(1)),
@@ -525,7 +525,7 @@ mod tests {
       history: None,
     };
 
-    substitute(&sig, &[arg_x.clone(), arg_pp], &mut mem);
+    substitute(&sig, &[arg_x.clone(), arg_pp], &mut mem.memory);
 
     // Key collapsed to local(p)
     assert!(mem.memory.get(&loc_p).is_some());

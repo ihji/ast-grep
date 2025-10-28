@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::engine::{
   constraints::Constraint,
-  domain::{AMem, AValue},
+  domain::{AState, AValue},
   history::ValueKind,
   reports::{Finding, FindingKind},
   trace::Trace,
@@ -19,12 +19,12 @@ pub enum Checked {
   Fired(Box<Effect>),
 }
 
-pub type Effect = dyn FnMut(&mut AMem);
+pub type Effect = dyn FnMut(&mut AState);
 
 pub trait Trigger: Debug {
   fn name(&self) -> &str;
   fn trace(&self) -> &Trace;
-  fn check(&self, memory: &AMem) -> Checked;
+  fn check(&self, memory: &AState) -> Checked;
 }
 
 impl Triggers {
@@ -48,7 +48,7 @@ impl Trigger for NullTrigger {
     &self.trace
   }
 
-  fn check(&self, memory: &AMem) -> Checked {
+  fn check(&self, memory: &AState) -> Checked {
     println!("Checking NullTrigger for value: {}", self.value);
     let null_constraint = memory.constraints.get_constraint(&self.value);
     let is_null = match null_constraint {
@@ -57,7 +57,7 @@ impl Trigger for NullTrigger {
     };
     let trace = self.trace.clone();
     if is_null {
-      Checked::Fired(Box::new(move |mem: &mut AMem| {
+      Checked::Fired(Box::new(move |mem: &mut AState| {
         mem.add_finding(Finding::new(
           FindingKind::NullDereference,
           trace.clone(),
@@ -69,7 +69,7 @@ impl Trigger for NullTrigger {
         .history_registry
         .get_history(ValueKind::Null, id)
         .cloned();
-      Checked::Fired(Box::new(move |mem: &mut AMem| {
+      Checked::Fired(Box::new(move |mem: &mut AState| {
         mem.add_finding(Finding::new(
           FindingKind::NullDereference,
           trace.clone(),
@@ -86,7 +86,7 @@ impl Trigger for NullTrigger {
 
 impl NullTrigger {
   // TODO: should we use &Avalue instead?
-  pub fn new(value: AValue, memory: &AMem) -> Self {
+  pub fn new(value: AValue, memory: &AState) -> Self {
     Self {
       value,
       trace: memory.trace.clone(),

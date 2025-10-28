@@ -270,9 +270,11 @@ impl Neg for AValue {
   }
 }
 
+pub type AMem = HashMap<ALoc, AValue>;
+
 #[derive(Debug)]
-pub struct AMem {
-  pub memory: HashMap<ALoc, AValue>,
+pub struct AState {
+  pub memory: AMem,
   pub history_registry: HistoryRegistry,
   pub triggers: Triggers,
   pub constraints: Constraints,
@@ -280,10 +282,10 @@ pub struct AMem {
   pub findings: Reports,
 }
 
-impl AMem {
+impl AState {
   pub fn new() -> Self {
-    AMem {
-      memory: HashMap::new(),
+    AState {
+      memory: AMem::new(),
       history_registry: HistoryRegistry::new(),
       triggers: Triggers::new(),
       constraints: Constraints::new(),
@@ -378,7 +380,7 @@ impl AMem {
   }
 
   fn fmt_core(&self, f: &mut Formatter<'_>, ctx: Option<&SessionCtx>) -> fmt::Result {
-    writeln!(f, "---- AMem State ----")?;
+    writeln!(f, "---- AState State ----")?;
     writeln!(f, "Memory:")?;
     let mut sorted_memory: Vec<_> = self.memory.iter().collect();
     sorted_memory.sort_by_key(|(k, _)| format!("{:?}", k));
@@ -404,8 +406,8 @@ impl AMem {
     writeln!(f, "--------------------")
   }
 
-  pub fn display_with_trace<'a>(&'a self, ctx: &'a SessionCtx<'a>) -> AMemWithTraceDisplay<'a> {
-    AMemWithTraceDisplay { amem: self, ctx }
+  pub fn display_with_trace<'a>(&'a self, ctx: &'a SessionCtx<'a>) -> AStateWithTraceDisplay<'a> {
+    AStateWithTraceDisplay { amem: self, ctx }
   }
 
   // TODO: add and check methods for constraints
@@ -518,24 +520,24 @@ impl Display for SExpr {
   }
 }
 
-pub struct AMemWithTraceDisplay<'a> {
-  amem: &'a AMem,
+pub struct AStateWithTraceDisplay<'a> {
+  amem: &'a AState,
   ctx: &'a SessionCtx<'a>,
 }
 
-impl<'a> Display for AMemWithTraceDisplay<'a> {
+impl<'a> Display for AStateWithTraceDisplay<'a> {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     self.amem.fmt_core(f, Some(self.ctx))
   }
 }
 
-impl Display for AMem {
+impl Display for AState {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     self.fmt_core(f, None)
   }
 }
 
-impl Default for AMem {
+impl Default for AState {
   fn default() -> Self {
     Self::new()
   }
