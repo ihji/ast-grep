@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::{Add, Mul, Neg, Sub};
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -11,6 +11,7 @@ use crate::engine::triggers::{Checked, Trigger, Triggers};
 use crate::il::{MethodSig, Type};
 use std::fmt::{self, Display, Formatter};
 
+use rpds::HashTrieMap;
 use AValue::*;
 
 static ID_COUNTER: AtomicU32 = AtomicU32::new(1);
@@ -270,7 +271,7 @@ impl Neg for AValue {
   }
 }
 
-pub type AMem = HashMap<ALoc, AValue>;
+pub type AMem = HashTrieMap<ALoc, AValue>;
 
 #[derive(Debug)]
 pub struct AState {
@@ -297,13 +298,13 @@ impl AState {
   pub fn initialize(&mut self, sig: &MethodSig) {
     for (_ty, name) in &sig.params {
       let loc = ASym(SExpr::SStar(ALoc::new_param(name.clone())));
-      self.memory.insert(ALoc::new_local(name.clone()), loc);
+      self.memory = self.memory.insert(ALoc::new_local(name.clone()), loc);
     }
   }
 
   pub fn merge_memory(&mut self, other: AMem) {
-    for (k, v) in other {
-      self.memory.insert(k, v);
+    for (k, v) in &other {
+      self.memory = self.memory.insert(k.clone(), v.clone());
     }
   }
 
@@ -350,12 +351,12 @@ impl AState {
           };
           self.update(field_loc, field_value);
         }
-        self
+        self.memory = self
           .memory
           .insert(loc, AValue::StructMarker { fields: field_ids });
       }
       _ => {
-        self.memory.insert(loc, value);
+        self.memory = self.memory.insert(loc, value);
       }
     }
   }

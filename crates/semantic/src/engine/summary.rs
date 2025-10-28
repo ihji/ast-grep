@@ -178,8 +178,13 @@ pub fn summarize(mem: &mut AState) {
       }
     }
   }
-
-  mem.memory.retain(|k, _| keys_to_keep.contains(k));
+  let mut parametrized = mem.memory.clone();
+  for (k, _) in mem.memory.iter() {
+    if !keys_to_keep.contains(k) {
+      parametrized = parametrized.remove(k);
+    }
+  }
+  mem.memory = parametrized;
 
   mem.history_registry.retain_only(&used_value_ids);
 }
@@ -303,7 +308,7 @@ pub fn substitute(sig: &MethodSig, args: &[AValue], mem: &AMem) -> AMem {
   for (k, v) in mem.iter() {
     let new_k = substitute_aloc(k, &param_map);
     let new_v = substitute_value(v, &param_map);
-    new_memory.insert(new_k, new_v);
+    new_memory = new_memory.insert(new_k, new_v);
   }
   new_memory
 }
