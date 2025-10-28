@@ -6,15 +6,16 @@ use crate::engine::domain::{ALoc, AMem, AValue, SExpr};
 use crate::engine::domain::{ALocKind, AValue::*};
 use crate::engine::interval::Interval;
 use crate::engine::path_explorer::PathExplorer;
+use crate::engine::summary;
 use crate::engine::triggers::NullTrigger;
 use crate::il::{BasicBlock, CfgStatement, CompositeItem, ValueKind};
 use crate::il::{BinaryOp, Expr, UnaryOp, Value};
 
-fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
+fn eval_expr(context: &SessionCtx, memory: &mut AMem, expr: &Expr) -> AValue {
   match expr {
     Expr::BinOp { op, left, right } => {
-      let left_val = eval(memory, left);
-      let right_val = eval(memory, right);
+      let left_val = eval(context, memory, left);
+      let right_val = eval(context, memory, right);
       match op {
         BinaryOp::Add => left_val + right_val,
         BinaryOp::Sub => left_val - right_val,
@@ -30,11 +31,11 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
       }
     }
     Expr::UnOp { value, op } => {
-      let value_val = eval(memory, value);
+      let value_val = eval(context, memory, value);
       match op {
         UnaryOp::Neg => -value_val,
         UnaryOp::And => {
-          let value_loc = eval_loc(memory, value);
+          let value_loc = eval_loc(context, memory, value);
           match value_loc.kind {
             ALocKind::AUnknown(_) => {
               memory.update(value_loc.clone(), value_val);
@@ -72,11 +73,11 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
                 ValueKind::Ident(s) => s.clone(),
                 _ => format!("{}", key),
               };
-              fields.insert(key_str, eval(memory, value));
+              fields.insert(key_str, eval(context, memory, value));
             }
             CompositeItem::Value(value) => {
               let idx_key = format!("{}", cur_idx);
-              fields.insert(idx_key, eval(memory, value));
+              fields.insert(idx_key, eval(context, memory, value));
               cur_idx += 1;
             }
           }
@@ -86,7 +87,7 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
         let mut array_elems = Vec::new();
         for element in elements {
           if let CompositeItem::Value(value) = element {
-            array_elems.push(eval(memory, value));
+            array_elems.push(eval(context, memory, value));
           }
         }
         AValue::AArray {
@@ -95,7 +96,7 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
       }
     }
     Expr::Deref { value } => {
-      let ptr_val = eval(memory, value);
+      let ptr_val = eval(context, memory, value);
       let nt = NullTrigger::new(ptr_val.clone(), memory);
       memory.add_trigger(Box::new(nt));
       let loc_opt = ptr_val.to_aloc();
@@ -106,11 +107,11 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
       }
     }
     Expr::DotAccess { base, field } => {
-      let base_val = eval(memory, base);
+      let base_val = eval(context, memory, base);
       let nt = NullTrigger::new(base_val.clone(), memory);
       memory.add_trigger(Box::new(nt));
       let base_loc = match base_val {
-        AValue::StructMarker { .. } => eval_loc(memory, base),
+        AValue::StructMarker { .. } => eval_loc(context, memory, base),
         _ => base_val.to_aloc().unwrap_or(ALoc::new_unknown()),
       };
       let loc = base_loc.add_field(field.clone());
@@ -120,7 +121,7 @@ fn eval_expr(memory: &mut AMem, expr: &Expr) -> AValue {
   }
 }
 
-fn eval(memory: &mut AMem, value: &Value) -> AValue {
+fn eval(context: &SessionCtx, memory: &mut AMem, value: &Value) -> AValue {
   match &value.kind {
     ValueKind::IntLit(x) => AValue::AInt((*x).into()),
     ValueKind::NullLit => {
@@ -132,21 +133,21 @@ fn eval(memory: &mut AMem, value: &Value) -> AValue {
       }
       nl
     }
-    ValueKind::Exp(expr) => eval_expr(memory, expr),
+    ValueKind::Exp(expr) => eval_expr(context, memory, expr),
     ValueKind::Ident(_) => {
-      let loc = eval_loc(memory, value);
+      let loc = eval_loc(context, memory, value);
       memory.read(&loc)
     }
-    ValueKind::CompositeLit(_t, arg) => eval(memory, arg),
+    ValueKind::CompositeLit(_t, arg) => eval(context, memory, arg),
     _ => AValue::top(),
   }
 }
 
-fn eval_loc(memory: &mut AMem, loc: &Value) -> ALoc {
+fn eval_loc(context: &SessionCtx, memory: &mut AMem, loc: &Value) -> ALoc {
   match &loc.kind {
     ValueKind::Ident(name) => ALoc::new_local(name.clone()),
     ValueKind::Exp(Expr::Deref { value }) => {
-      let ptr_loc = eval_loc(memory, value);
+      let ptr_loc = eval_loc(context, memory, value);
       let ptr_val = memory.read(&ptr_loc);
       let nt = NullTrigger::new(ptr_val.clone(), memory);
       memory.add_trigger(Box::new(nt));
@@ -169,8 +170,8 @@ pub fn transfer_stmt(
       right,
       tag: _tag,
     } => {
-      let loc = eval_loc(memory, left);
-      let val = eval(memory, right);
+      let loc = eval_loc(context, memory, left);
+      let val = eval(context, memory, right);
       if let AValue::ANull { id } = &val {
         memory
           .history_registry
@@ -181,7 +182,7 @@ pub fn transfer_stmt(
     CfgStatement::Invoke {
       kind: _,
       callee,
-      args: _,
+      args,
       ret_type: _,
       ret_loc: _,
       tag: _,
@@ -203,13 +204,23 @@ pub fn transfer_stmt(
       } */
       match callee.extra.symbol_id {
         Some(id) => {
-          let callee_mems = context.summary.get_memories(&id);
-          if callee_mems.is_some() {
+          let callee_sum = context.summary.get_summary(&id);
+          if let Some(callee_sum) = callee_sum {
             println!(
               "Found {} summaries for function call to {}",
-              callee_mems.unwrap().len(),
+              callee_sum.parametrized_memories.len(),
               callee
             );
+            let param_values = args
+              .iter()
+              .map(|arg| eval(context, memory, arg))
+              .collect::<Vec<_>>();
+            for cmem in &callee_sum.parametrized_memories {
+              let after = summary::substitute(&callee_sum.method_sig, &param_values, cmem);
+              println!("Applying summary memory: {:?}", after);
+            }
+          } else {
+            println!("No summary found for function call to {}", callee);
           }
         }
         None => {}
@@ -218,7 +229,7 @@ pub fn transfer_stmt(
     CfgStatement::Assume { value, tag } => {
       let tag = tag.or(value.tag);
       memory.trace.add_assume(context, &tag, format!("{}", value));
-      let v = eval(memory, value);
+      let v = eval(context, memory, value);
       if let AInt(0) = v {
         println!("Assumption is false, path ends here: {:?}", memory.trace);
         path_explorer.mark_done();

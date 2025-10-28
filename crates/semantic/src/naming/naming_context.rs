@@ -36,6 +36,7 @@ pub enum Visibility {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeclKind {
   Var(Option<il::Type>),
+  Param(Option<il::Type>),
   Function,
   Class,
   Struct,

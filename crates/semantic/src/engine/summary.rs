@@ -12,8 +12,8 @@ pub struct SummaryRegistry {
 
 #[derive(Debug)]
 pub struct Summary {
-  parametrized_memories: Vec<AMem>,
-  method_sig: MethodSig,
+  pub parametrized_memories: Vec<AMem>,
+  pub method_sig: MethodSig,
 }
 
 impl SummaryRegistry {
@@ -39,11 +39,8 @@ impl SummaryRegistry {
       .map(|s| s.parametrized_memories.push(mem))
       .ok_or_else(|| anyhow::anyhow!("Summary not found"))
   }
-  pub fn get_memories(&self, id: &SymbolId) -> Option<&Vec<AMem>> {
-    self.summaries.get(id).map(|s| &s.parametrized_memories)
-  }
-  pub fn get_method_sig(&self, id: &SymbolId) -> Option<&MethodSig> {
-    self.summaries.get(id).map(|s| &s.method_sig)
+  pub fn get_summary(&self, id: &SymbolId) -> Option<&Summary> {
+    self.summaries.get(id)
   }
 }
 
@@ -187,6 +184,130 @@ pub fn summarize(mem: &mut AMem) {
   mem.history_registry.retain_only(&used_value_ids);
 }
 
+fn substitute_aloc(loc: &ALoc, param_map: &HashMap<String, AValue>) -> ALoc {
+  match &loc.kind {
+    ALocKind::ASymStar(inner) => match &inner.kind {
+      ALocKind::AParam(name) => param_map
+        .get(name)
+        .and_then(|arg| arg.to_aloc())
+        .map(|mut arg_loc| {
+          arg_loc.path.extend(loc.path.clone());
+          arg_loc
+        })
+        .unwrap_or_else(|| loc.clone()),
+      _ => loc.clone(),
+    },
+    _ => loc.clone(),
+  }
+}
+
+fn substitute_value(val: &AValue, param_map: &HashMap<String, AValue>) -> AValue {
+  match val {
+    AValue::ARef {
+      location,
+      type_info,
+      history,
+    } => AValue::ARef {
+      location: Box::new(substitute_aloc(location, param_map)),
+      type_info: type_info.clone(),
+      history: history.clone(),
+    },
+    AValue::ASym(expr) => match expr {
+      SExpr::SStar(loc) => match &loc.kind {
+        ALocKind::AParam(name) => param_map
+          .get(name)
+          .cloned()
+          .unwrap_or_else(|| AValue::ASym(SExpr::SStar(loc.clone()))),
+        _ => AValue::ASym(SExpr::SStar(loc.clone())),
+      },
+      SExpr::SAdd(a, b) => AValue::ASym(SExpr::SAdd(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SSub(a, b) => AValue::ASym(SExpr::SSub(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SMul(a, b) => AValue::ASym(SExpr::SMul(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SEquals(a, b) => AValue::ASym(SExpr::SEquals(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SNotEquals(a, b) => AValue::ASym(SExpr::SNotEquals(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SLessThan(a, b) => AValue::ASym(SExpr::SLessThan(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SGreaterThan(a, b) => AValue::ASym(SExpr::SGreaterThan(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SLessThanOrEqual(a, b) => AValue::ASym(SExpr::SLessThanOrEqual(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SGreaterThanOrEqual(a, b) => AValue::ASym(SExpr::SGreaterThanOrEqual(
+        Box::new(substitute_value(a, param_map)),
+        Box::new(substitute_value(b, param_map)),
+      )),
+      SExpr::SNeg(a) => AValue::ASym(SExpr::SNeg(Box::new(substitute_value(a, param_map)))),
+      SExpr::SCond {
+        condition,
+        then_branch,
+        else_branch,
+      } => AValue::ASym(SExpr::SCond {
+        condition: Box::new(substitute_value(condition, param_map)),
+        then_branch: Box::new(substitute_value(then_branch, param_map)),
+        else_branch: Box::new(substitute_value(else_branch, param_map)),
+      }),
+      SExpr::SFieldAccess {
+        base_value,
+        field_id,
+      } => AValue::ASym(SExpr::SFieldAccess {
+        base_value: Box::new(substitute_value(base_value, param_map)),
+        field_id: field_id.clone(),
+      }),
+      SExpr::STop => AValue::ASym(SExpr::STop),
+    },
+    AValue::AStruct { fields } => {
+      let mut nf = std::collections::BTreeMap::new();
+      for (k, v) in fields {
+        nf.insert(k.clone(), substitute_value(v, param_map));
+      }
+      AValue::AStruct { fields: nf }
+    }
+    AValue::AArray { elements } => {
+      let mut ne = Vec::with_capacity(elements.len());
+      for v in elements {
+        ne.push(substitute_value(v, param_map));
+      }
+      AValue::AArray { elements: ne }
+    }
+    _ => val.clone(),
+  }
+}
+
+pub fn substitute(sig: &MethodSig, args: &[AValue], mem: &AMem) -> HashMap<ALoc, AValue> {
+  let mut param_map: HashMap<String, AValue> = HashMap::new();
+  for ((_, name), arg) in sig.params.iter().zip(args.iter()) {
+    param_map.insert(name.clone(), arg.clone());
+  }
+
+  let mut new_memory = HashMap::new();
+  for (k, v) in mem.memory.iter() {
+    let new_k = substitute_aloc(k, &param_map);
+    let new_v = substitute_value(v, &param_map);
+    new_memory.insert(new_k, new_v);
+  }
+  new_memory
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -318,5 +439,104 @@ mod tests {
     assert!(mem.memory.get(&heap_h1).is_some());
     assert!(mem.memory.get(&star_this).is_some());
     assert!(mem.memory.get(&local_waste).is_none());
+  }
+
+  #[test]
+  fn test_substitute_param_deref_into_local() {
+    // Setup a parametrized summary mem: *(param(pp)) -> null
+    let mut mem = AMem::new();
+    let star_pp = ALoc::new_sym_star(ALoc::new_param("pp".to_string()));
+    let null_v = AValue::null();
+    mem.update(star_pp.clone(), null_v.clone());
+
+    // Signature: foo(x int, pp **int)
+    let sig = MethodSig {
+      name: "foo".to_string(),
+      params: vec![
+        (crate::il::Type::Int, "x".to_string()),
+        (
+          crate::il::Type::Pointer(Box::new(crate::il::Type::Pointer(Box::new(
+            crate::il::Type::Int,
+          )))),
+          "pp".to_string(),
+        ),
+      ],
+      id: None,
+    };
+
+    // Call args: (10, &local(p))
+    let arg_x = AValue::AInt(10);
+    let loc_p = ALoc::new_local("p".to_string());
+    let arg_pp = AValue::ARef {
+      location: Box::new(loc_p.clone()),
+      type_info: None,
+      history: None,
+    };
+
+    substitute(&sig, &[arg_x, arg_pp], &mut mem);
+
+    // After substitution: local(p) -> null
+    assert!(mem.memory.get(&loc_p).is_some());
+    assert_eq!(mem.memory.get(&loc_p), Some(&null_v));
+    // Original star param key should be gone
+    assert!(mem.memory.get(&star_pp).is_none());
+  }
+
+  #[test]
+  fn test_substitute_nested_expression() {
+    // mem: *(param(pp)) -> 1 + *param(x)
+    let mut mem = AMem::new();
+    let star_pp = ALoc::new_sym_star(ALoc::new_param("pp".to_string()));
+    let expr = AValue::ASym(SExpr::SAdd(
+      Box::new(AValue::AInt(1)),
+      Box::new(AValue::ASym(SExpr::SStar(ALoc::new_param("x".to_string())))),
+    ));
+    mem.update(star_pp.clone(), expr);
+
+    // Signature: foo(x *int, pp **int)
+    let sig = MethodSig {
+      name: "foo".to_string(),
+      params: vec![
+        (
+          crate::il::Type::Pointer(Box::new(crate::il::Type::Int)),
+          "x".to_string(),
+        ),
+        (
+          crate::il::Type::Pointer(Box::new(crate::il::Type::Pointer(Box::new(
+            crate::il::Type::Int,
+          )))),
+          "pp".to_string(),
+        ),
+      ],
+      id: None,
+    };
+
+    // Args: (&q, &p)
+    let loc_q = ALoc::new_local("q".to_string());
+    let arg_x = AValue::ARef {
+      location: Box::new(loc_q.clone()),
+      type_info: None,
+      history: None,
+    };
+    let loc_p = ALoc::new_local("p".to_string());
+    let arg_pp = AValue::ARef {
+      location: Box::new(loc_p.clone()),
+      type_info: None,
+      history: None,
+    };
+
+    substitute(&sig, &[arg_x.clone(), arg_pp], &mut mem);
+
+    // Key collapsed to local(p)
+    assert!(mem.memory.get(&loc_p).is_some());
+    // Value substituted to 1 + &q
+    let new_v = mem.memory.get(&loc_p).unwrap();
+    match new_v {
+      AValue::ASym(SExpr::SAdd(left, right)) => {
+        assert_eq!(**left, AValue::AInt(1));
+        assert_eq!(&**right, &arg_x);
+      }
+      v => panic!("Unexpected value after substitution: {:?}", v),
+    }
   }
 }

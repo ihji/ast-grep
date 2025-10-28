@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::{
-  il::{DefineKind, MethodSig, Program, Statement},
+  il::{DefineKind, MethodSig, Program, Statement, Type},
   naming::{
     naming_context::{DeclKind, Namespace, ScopeKind, Visibility},
     NamingContext, ScopeId,
@@ -42,8 +42,18 @@ fn collect_stmts_in_scope(
   stmts: &mut Vec<Statement>,
   scope_kind: ScopeKind,
   name: Option<&str>,
+  bindings: Option<&Vec<(Type, String)>>,
 ) -> ScopeId {
   let new_scope_id = ctx.enter_scope(scope_kind, name);
+  for (t, name) in bindings.unwrap_or(&Vec::new()) {
+    ctx.register_symbol(
+      name,
+      Namespace::Value,
+      DeclKind::Param(Some(t.clone())),
+      Visibility::Private,
+      None,
+    );
+  }
   for stmt in stmts {
     collect_stmt(ctx, stmt);
   }
@@ -71,10 +81,13 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
           body,
           ScopeKind::Module,
           Some(name),
+          None,
         ));
       }
       DefineKind::Method {
-        sig: MethodSig { name, id, .. },
+        sig: MethodSig {
+          name, params, id, ..
+        },
         body,
         ..
       } => {
@@ -90,12 +103,19 @@ fn collect_stmt(ctx: &mut NamingContext, stmt: &mut Statement) {
           body,
           ScopeKind::Function,
           Some(name),
+          Some(params),
         ));
         *id = Some(symbol_id);
       }
       DefineKind::Package(_) => {}
       DefineKind::Constructor { body, .. } => {
-        *scope_id = Some(collect_stmts_in_scope(ctx, body, ScopeKind::Function, None));
+        *scope_id = Some(collect_stmts_in_scope(
+          ctx,
+          body,
+          ScopeKind::Function,
+          None,
+          None,
+        ));
       }
       DefineKind::Interface { .. } => {}
       DefineKind::Field { .. } => {}
