@@ -473,13 +473,13 @@ mod tests {
       history: None,
     };
 
-    substitute(&sig, &[arg_x, arg_pp], &mut mem.memory);
+    let memory = substitute(&sig, &[arg_x, arg_pp], &mut mem.memory);
 
     // After substitution: local(p) -> null
-    assert!(mem.memory.get(&loc_p).is_some());
-    assert_eq!(mem.memory.get(&loc_p), Some(&null_v));
+    assert!(memory.get(&loc_p).is_some());
+    assert_eq!(memory.get(&loc_p), Some(&null_v));
     // Original star param key should be gone
-    assert!(mem.memory.get(&star_pp).is_none());
+    assert!(memory.get(&star_pp).is_none());
   }
 
   #[test]
@@ -525,12 +525,12 @@ mod tests {
       history: None,
     };
 
-    substitute(&sig, &[arg_x.clone(), arg_pp], &mut mem.memory);
+    let memory = substitute(&sig, &[arg_x.clone(), arg_pp], &mut mem.memory);
 
     // Key collapsed to local(p)
-    assert!(mem.memory.get(&loc_p).is_some());
+    assert!(memory.get(&loc_p).is_some());
     // Value substituted to 1 + &q
-    let new_v = mem.memory.get(&loc_p).unwrap();
+    let new_v = memory.get(&loc_p).unwrap();
     match new_v {
       AValue::ASym(SExpr::SAdd(left, right)) => {
         assert_eq!(**left, AValue::AInt(1));

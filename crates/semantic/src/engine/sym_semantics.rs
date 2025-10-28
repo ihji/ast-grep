@@ -202,6 +202,10 @@ pub fn transfer_stmt(
           }
         }
       } */
+      let param_values = args
+        .iter()
+        .map(|arg| eval(context, memory, arg))
+        .collect::<Vec<_>>();
       match callee.extra.symbol_id {
         Some(id) => {
           let callee_sum = context.summary.get_summary(&id);
@@ -211,13 +215,9 @@ pub fn transfer_stmt(
               callee_sum.parametrized_memories.len(),
               callee
             );
-            let param_values = args
-              .iter()
-              .map(|arg| eval(context, memory, arg))
-              .collect::<Vec<_>>();
             for cmem in &callee_sum.parametrized_memories {
               let after = summary::substitute(&callee_sum.method_sig, &param_values, &cmem.memory);
-              println!("Applying summary memory: {:?}", after);
+              memory.merge_memory(after); // XXX: multiply states. not merging all.
             }
           } else {
             println!("No summary found for function call to {}", callee);

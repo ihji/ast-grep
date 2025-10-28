@@ -301,6 +301,12 @@ impl AState {
     }
   }
 
+  pub fn merge_memory(&mut self, other: AMem) {
+    for (k, v) in other {
+      self.memory.insert(k, v);
+    }
+  }
+
   pub fn read(&self, loc: &ALoc) -> AValue {
     let v = self.memory.get(loc);
     match v {
