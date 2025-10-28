@@ -1,4 +1,6 @@
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
+
+use rpds::HashTrieMap;
 
 use crate::engine::trace::{Pos, Trace};
 
@@ -57,7 +59,7 @@ impl ValueHistory {
 
 #[derive(Debug, Default)]
 pub struct HistoryRegistry {
-  histories: HashMap<ValueId, ValueHistory>,
+  histories: HashTrieMap<ValueId, ValueHistory>,
 }
 
 impl Display for HistoryEvent {
@@ -92,12 +94,18 @@ impl Display for HistoryRegistry {
 impl HistoryRegistry {
   pub fn new() -> Self {
     HistoryRegistry {
-      histories: HashMap::new(),
+      histories: HashTrieMap::new(),
     }
   }
 
   pub fn retain_only(&mut self, keep: &std::collections::HashSet<ValueId>) {
-    self.histories.retain(|k, _| keep.contains(k));
+    let mut new_histories = self.histories.clone();
+    for (key, _) in &self.histories {
+      if !keep.contains(&key) {
+        new_histories = new_histories.remove(key);
+      }
+    }
+    self.histories = new_histories;
   }
 
   fn register_creation(
@@ -116,7 +124,14 @@ impl HistoryRegistry {
       trace_event_idx: trace_idx,
     };
 
-    let history = self.histories.entry(value_id).or_default();
+    let history = match self.histories.get_mut(&value_id) {
+      Some(history) => history,
+      None => {
+        let new_history = ValueHistory::new();
+        self.histories = self.histories.insert(value_id, new_history);
+        self.histories.get_mut(&value_id).unwrap()
+      }
+    };
     history.add_creation_event(event);
   }
 

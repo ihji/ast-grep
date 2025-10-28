@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rpds::HashTrieMap;
 
 use crate::engine::{domain::AValue, interval::Interval};
 
@@ -13,13 +13,13 @@ pub enum Constraint {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Constraints {
-  preds: HashMap<AValue, Constraint>,
+  preds: HashTrieMap<AValue, Constraint>,
 }
 
 impl Constraints {
   pub fn new() -> Self {
     Self {
-      preds: HashMap::new(),
+      preds: HashTrieMap::new(),
     }
   }
 
@@ -53,7 +53,7 @@ impl Constraints {
       println!("Constraint {:?} is not satisfied by {:?}", constraint, val);
       return false;
     }
-    self.preds.insert(val, constraint);
+    self.preds = self.preds.insert(val, constraint);
     true
   }
 
