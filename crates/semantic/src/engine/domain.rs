@@ -271,6 +271,8 @@ impl Neg for AValue {
   }
 }
 
+pub type AStates = Vec<AState>;
+
 pub type AMem = HashTrieMap<ALoc, AValue>;
 
 #[derive(Debug)]

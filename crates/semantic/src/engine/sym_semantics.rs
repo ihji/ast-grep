@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::engine::constraints::Constraint;
 use crate::engine::context::SessionCtx;
-use crate::engine::domain::{ALoc, AState, AValue, SExpr};
+use crate::engine::domain::{ALoc, AState, AStates, AValue, SExpr};
 use crate::engine::domain::{ALocKind, AValue::*};
 use crate::engine::interval::Interval;
 use crate::engine::path_explorer::PathExplorer;
@@ -161,8 +161,8 @@ pub fn transfer_stmt(
   context: &SessionCtx,
   path_explorer: &mut impl PathExplorer,
   stmt: &CfgStatement,
-  memory: &mut AState,
-) {
+  mut memory: AState,
+) -> AStates {
   memory.trace.update_pos(context, &stmt.get_tag());
   match stmt {
     CfgStatement::Assign {
@@ -170,14 +170,15 @@ pub fn transfer_stmt(
       right,
       tag: _tag,
     } => {
-      let loc = eval_loc(context, memory, left);
-      let val = eval(context, memory, right);
+      let loc = eval_loc(context, &mut memory, left);
+      let val = eval(context, &mut memory, right);
       if let AValue::ANull { id } = &val {
         memory
           .history_registry
           .track_null_assignment(*id, &memory.trace, format!("{}", left));
       }
       memory.update(loc, val);
+      vec![memory]
     }
     CfgStatement::Invoke {
       kind: _,
@@ -204,7 +205,7 @@ pub fn transfer_stmt(
       } */
       let param_values = args
         .iter()
-        .map(|arg| eval(context, memory, arg))
+        .map(|arg| eval(context, &mut memory, arg))
         .collect::<Vec<_>>();
       match callee.extra.symbol_id {
         Some(id) => {
@@ -225,15 +226,16 @@ pub fn transfer_stmt(
         }
         None => {}
       }
+      vec![memory]
     }
     CfgStatement::Assume { value, tag } => {
       let tag = tag.or(value.tag);
       memory.trace.add_assume(context, &tag, format!("{}", value));
-      let v = eval(context, memory, value);
+      let v = eval(context, &mut memory, value);
       if let AInt(0) = v {
         println!("Assumption is false, path ends here: {:?}", memory.trace);
         path_explorer.mark_done();
-        return;
+        return vec![];
       }
       let constr_opt = match &v {
         ASym(SExpr::SEquals(lv, rv)) => match (&**lv, &**rv) {
@@ -298,10 +300,11 @@ pub fn transfer_stmt(
           path_explorer.mark_done();
         }
       }
+      vec![memory]
     }
-    CfgStatement::Return { value: _, .. } => (),
-    CfgStatement::Break => (),
-    CfgStatement::Nop { .. } => (),
+    CfgStatement::Return { value: _, .. } => vec![memory],
+    CfgStatement::Break => vec![memory],
+    CfgStatement::Nop { .. } => vec![memory],
   }
 }
 
@@ -309,12 +312,19 @@ pub fn transfer_block(
   context: &SessionCtx,
   path_explorer: &mut impl PathExplorer,
   block: &BasicBlock,
-  memory: &mut AState,
-) {
+  states: AStates,
+) -> AStates {
+  let mut cur_states = states;
   for stmt in &block.stmts {
     if path_explorer.is_done() {
       break;
     }
-    transfer_stmt(context, path_explorer, stmt, memory);
+    let mut next_states = AStates::new();
+    for state in cur_states {
+      let new_states = transfer_stmt(context, path_explorer, stmt, state);
+      next_states.extend(new_states);
+    }
+    cur_states = next_states;
   }
+  cur_states
 }

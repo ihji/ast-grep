@@ -5,7 +5,7 @@ use petgraph::graph::NodeIndex;
 use petgraph::visit::{DfsPostOrder, EdgeRef, Walker};
 
 use crate::engine::context::SessionCtx;
-use crate::engine::domain::AState;
+use crate::engine::domain::{AState, AStates};
 use crate::engine::path_explorer::{DumbPathExplorer, PathExplorer};
 use crate::engine::reports::Reports;
 use crate::engine::sym_semantics::transfer_block;
@@ -40,14 +40,15 @@ fn execute_path(
   method_sig: &MethodSig,
   cfg: &CFG,
   path_explorer: &mut impl PathExplorer,
-) -> AState {
+) -> AStates {
   println!("Symbolic execution engine");
   let mut next_id = Some(cfg.entry);
-  let mut memory = AState::new();
-  memory.initialize(method_sig);
+  let mut state = AState::new();
+  state.initialize(method_sig);
+  let mut states = vec![state];
   while let Some(id) = next_id {
     let current_block = &cfg.graph[id];
-    transfer_block(context, path_explorer, current_block, &mut memory);
+    states = transfer_block(context, path_explorer, current_block, states);
     let edges = cfg.graph.edges(id).collect::<Vec<_>>();
     if path_explorer.is_done() || edges.is_empty() {
       path_explorer.mark_done();
@@ -70,19 +71,23 @@ fn execute_path(
           CfgEdgeKind::False(t) => *t,
           _ => None,
         };
-        memory.trace.add_branch(
-          context,
-          &next_tag,
-          &tag,
-          *edge.weight() == CfgEdgeKind::True(None),
-        );
+        for state in &mut states {
+          state.trace.add_branch(
+            context,
+            &next_tag,
+            &tag,
+            *edge.weight() == CfgEdgeKind::True(None),
+          );
+        }
       }
     } else {
       next_id = Some(edges[0].target());
     }
   }
-  println!("Final memory: {}", memory.display_with_trace(&context));
-  memory
+  for state in &states {
+    println!("Final state: {}", state.display_with_trace(&context));
+  }
+  states
 }
 
 fn execute_method(
@@ -97,9 +102,11 @@ fn execute_method(
     .ok_or_else(|| anyhow::anyhow!("Cannot execute method without id: {}", method_sig.name))?;
   context.summary.create_summary(id, method_sig);
   loop {
-    let mem = execute_path(context, method_sig, cfg, &mut path_explorer);
-    findings.all.extend(mem.findings.all.iter().cloned());
-    context.summary.add_memory(id, mem)?;
+    let states = execute_path(context, method_sig, cfg, &mut path_explorer);
+    for state in states {
+      findings.all.extend(state.findings.all.iter().cloned());
+      context.summary.add_memory(id, state)?;
+    }
     if !path_explorer.next_path() {
       break;
     }
