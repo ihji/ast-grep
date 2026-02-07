@@ -1,3 +1,6 @@
+use crate::ast::convert_utils::{
+  flatten_nested, map_transposed_or_default, transpose_with_ctx, with_ctx,
+};
 use crate::ast::go_nodes::anon_unions::Anon296608916358560338577356235414932652551 as CompositeLiteralType;
 use crate::ast::go_nodes::anon_unions::Block_IfStatement;
 use crate::ast::go_nodes::anon_unions::DefaultCase_ExpressionCase;
@@ -29,6 +32,7 @@ use super::go_nodes::anon_unions::Comma_Type;
 use super::go_nodes::anon_unions::SimpleType_ParameterList;
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -97,6 +101,99 @@ impl<'src> GoConverter<'src> {
         tag: None,
       },
       name,
+    )
+  }
+
+  fn collect_typed_params(values: Vec<il::Value>, context: &str) -> Vec<(il::Type, String)> {
+    values
+      .into_iter()
+      .filter_map(|value| match value {
+        il::Value {
+          kind: il::ValueKind::Ident(name),
+          extra: ValueExtra {
+            type_declared: Some(t),
+            ..
+          },
+          ..
+        } => Some((t, name)),
+        _ => {
+          eprintln!("Expected typed Ident value in {context}, got: {:?}", value);
+          None
+        }
+      })
+      .collect()
+  }
+
+  fn convert_statement_results<E, I>(
+    &mut self,
+    root: &AstGrep<StrDoc<SupportLang>>,
+    items: I,
+    item_ctx: &str,
+  ) -> Result<Vec<il::Statement>>
+  where
+    I: IntoIterator<Item = std::result::Result<Statement<'src>, E>>,
+    E: Debug,
+  {
+    items
+      .into_iter()
+      .map(|item| {
+        with_ctx(item, item_ctx).and_then(|statement| self.convert_statement(root, &statement))
+      })
+      .collect::<Result<Vec<Vec<il::Statement>>>>()
+      .map(flatten_nested)
+  }
+
+  fn convert_optional_statement_list<E>(
+    &mut self,
+    root: &AstGrep<StrDoc<SupportLang>>,
+    statement_list: Option<std::result::Result<StatementList<'src>, E>>,
+    list_ctx: &str,
+    item_ctx: &str,
+  ) -> Result<Vec<il::Statement>>
+  where
+    E: Debug,
+  {
+    match transpose_with_ctx(statement_list, list_ctx)? {
+      Some(statement_list) => self.convert_statement_results(
+        root,
+        statement_list.statements(&mut statement_list.walk()),
+        item_ctx,
+      ),
+      None => Ok(vec![]),
+    }
+  }
+
+  fn convert_expression_results<E, I>(
+    &mut self,
+    root: &AstGrep<StrDoc<SupportLang>>,
+    items: I,
+    item_ctx: &str,
+  ) -> Result<Vec<(il::Value, Vec<il::Statement>)>>
+  where
+    I: IntoIterator<Item = std::result::Result<Expression<'src>, E>>,
+    E: Debug,
+  {
+    items
+      .into_iter()
+      .map(|item| with_ctx(item, item_ctx).and_then(|expr| self.convert_expression(root, &expr)))
+      .collect()
+  }
+
+  fn split_expression_results(
+    values: Vec<(il::Value, Vec<il::Statement>)>,
+  ) -> (Vec<il::Value>, Vec<il::Statement>) {
+    let (values, stmts): (Vec<il::Value>, Vec<Vec<il::Statement>>) = values.into_iter().unzip();
+    (values, flatten_nested(stmts))
+  }
+
+  fn default_true_condition() -> (il::Value, Vec<il::Statement>) {
+    (
+      il::Value {
+        kind: il::ValueKind::IntLit(1),
+        extra: ValueExtra::new(None, None),
+        tag: None,
+      },
+      vec![],
     )
   }
 
@@ -180,12 +277,11 @@ impl<'src> GoConverter<'src> {
     param_list
       .children(&mut param_list.walk())
       .map(|plr| {
-        plr
-          .map_err(|e| anyhow!("Error converting parameter list: {:?}", e))
+        with_ctx(plr, "Error converting parameter list")
           .and_then(|pl| self.convert_parameter_declaration(root, &pl))
       })
       .collect::<Result<Vec<Vec<il::Value>>>>()
-      .map(|inner| inner.into_iter().flatten().collect::<Vec<_>>())
+      .map(flatten_nested)
   }
 
   fn convert_toplevels(
@@ -200,9 +296,7 @@ impl<'src> GoConverter<'src> {
         match top {
           TopLevel::Statement(st) => self.convert_statement(root, st),
           TopLevel::PackageClause(pc) => {
-            let name = pc
-              .package_identifier()
-              .map_err(|e| anyhow!("Error converting package name: {:?}", e))?
+            let name = with_ctx(pc.package_identifier(), "Error converting package name")?
               .utf8_text(root.source().as_bytes())?
               .to_string();
             let tag = self.source_info.register(*pc.raw());
@@ -213,56 +307,34 @@ impl<'src> GoConverter<'src> {
             }])
           }
           TopLevel::MethodDeclaration(md) => {
-            let receiver_list = md
-              .receiver()
-              .map_err(|e| anyhow!("Error converting method receiver: {:?}", e))?;
+            let receiver_list = with_ctx(md.receiver(), "Error converting method receiver")?;
             let receiver_params = self.convert_parameter_list(root, &receiver_list)?;
-            let method_param_list = md
-              .parameters()
-              .map_err(|e| anyhow!("Error converting method parameters: {:?}", e))?;
+            let method_param_list =
+              with_ctx(md.parameters(), "Error converting method parameters")?;
             let method_params = self.convert_parameter_list(root, &method_param_list)?;
-            let params = [receiver_params, method_params]
-              .concat()
-              .into_iter()
-              .flat_map(|v| match v {
-                il::Value {
-                  kind: il::ValueKind::Ident(name),
-                  extra:
-                    ValueExtra {
-                      type_declared: Some(t),
-                      ..
-                    },
-                  tag: _,
-                } => Some((t, name)),
-                _ => {
-                  eprintln!("Expected Var value in method params, got: {:?}", v);
-                  None
-                }
-              })
-              .collect::<Vec<_>>();
-            let method_stmts = md
-              .body()
-              .transpose()
-              .map_err(|e| anyhow!("Error converting method body: {:?}", e))?
-              .map(|x| self.convert_block(root, &x))
-              .transpose()?
-              .unwrap_or(vec![]);
+            let params = Self::collect_typed_params(
+              [receiver_params, method_params].concat(),
+              "method params",
+            );
+            let method_stmts = map_transposed_or_default(
+              md.body(),
+              "Error converting method body",
+              vec![],
+              |body| self.convert_block(root, &body),
+            )?;
             let method_sig = il::MethodSig {
-              name: md
-                .name()
-                .map_err(|e| anyhow!("Error converting method name: {:?}", e))?
+              name: with_ctx(md.name(), "Error converting method name")?
                 .utf8_text(root.source().as_bytes())?
                 .to_string(),
               params,
               id: None,
             };
-            let ret_type = md
-              .result()
-              .transpose()
-              .map_err(|e| anyhow!("Error converting method return type: {:?}", e))?
-              .map(|x| self.convert_simple_type_parameter_list(root, &x))
-              .transpose()?
-              .unwrap_or(vec![]);
+            let ret_type = map_transposed_or_default(
+              md.result(),
+              "Error converting method return type",
+              vec![],
+              |result| self.convert_simple_type_parameter_list(root, &result),
+            )?;
             let method_decl = il::DefineKind::Method {
               sig: method_sig,
               body: method_stmts,
@@ -276,51 +348,29 @@ impl<'src> GoConverter<'src> {
             }])
           }
           TopLevel::FunctionDeclaration(fd) => {
-            let function_param_list = fd
-              .parameters()
-              .map_err(|e| anyhow!("Error converting function parameters: {:?}", e))?;
+            let function_param_list =
+              with_ctx(fd.parameters(), "Error converting function parameters")?;
             let function_params = self.convert_parameter_list(root, &function_param_list)?;
-            let params = function_params
-              .into_iter()
-              .flat_map(|v| match v {
-                il::Value {
-                  kind: il::ValueKind::Ident(name),
-                  extra:
-                    ValueExtra {
-                      type_declared: Some(t),
-                      ..
-                    },
-                  tag: _,
-                } => Some((t, name)),
-                _ => {
-                  eprintln!("Expected Var value in function params, got: {:?}", v);
-                  None
-                }
-              })
-              .collect::<Vec<_>>();
-            let function_stmts = fd
-              .body()
-              .transpose()
-              .map_err(|e| anyhow!("Error converting function body: {:?}", e))?
-              .map(|x| self.convert_block(root, &x))
-              .transpose()?
-              .unwrap_or(vec![]);
+            let params = Self::collect_typed_params(function_params, "function params");
+            let function_stmts = map_transposed_or_default(
+              fd.body(),
+              "Error converting function body",
+              vec![],
+              |body| self.convert_block(root, &body),
+            )?;
             let function_sig = il::MethodSig {
-              name: fd
-                .name()
-                .map_err(|e| anyhow!("Error converting function name: {:?}", e))?
+              name: with_ctx(fd.name(), "Error converting function name")?
                 .utf8_text(root.source().as_bytes())?
                 .to_string(),
               params,
               id: None,
             };
-            let ret_type = fd
-              .result()
-              .transpose()
-              .map_err(|e| anyhow!("Error converting function return type: {:?}", e))?
-              .map(|x| self.convert_simple_type_parameter_list(root, &x))
-              .transpose()?
-              .unwrap_or(vec![]);
+            let ret_type = map_transposed_or_default(
+              fd.result(),
+              "Error converting function return type",
+              vec![],
+              |result| self.convert_simple_type_parameter_list(root, &result),
+            )?;
             let method_decl = il::DefineKind::Method {
               sig: function_sig,
               body: function_stmts,
@@ -340,7 +390,7 @@ impl<'src> GoConverter<'src> {
         }
       })
       .collect::<Result<Vec<Vec<il::Statement>>>>()?;
-    Ok(results.into_iter().flatten().collect())
+    Ok(flatten_nested(results))
   }
 
   fn convert_block(
@@ -348,26 +398,12 @@ impl<'src> GoConverter<'src> {
     root: &AstGrep<StrDoc<SupportLang>>,
     block: &Block<'src>,
   ) -> Result<Vec<il::Statement>> {
-    let stmts = block
-      .statement_list()
-      .transpose()
-      .map_err(|e| anyhow!("Error converting statement list: {:?}", e))?;
-    match stmts {
-      None => Ok(vec![]),
-      Some(stmts) => Ok(
-        stmts
-          .statements(&mut block.walk())
-          .map(|child| {
-            child
-              .map_err(|e| anyhow!("Error converting block statement: {:?}", e))
-              .and_then(|c| self.convert_statement(root, &c))
-          })
-          .collect::<Result<Vec<Vec<il::Statement>>>>()?
-          .into_iter()
-          .flatten()
-          .collect::<Vec<_>>(),
-      ),
-    }
+    self.convert_optional_statement_list(
+      root,
+      block.statement_list(),
+      "Error converting statement list",
+      "Error converting block statement",
+    )
   }
 
   fn convert_type(&mut self, root: &AstGrep<StrDoc<SupportLang>>, t: &Type<'src>) -> il::Type {
@@ -654,7 +690,7 @@ impl<'src> GoConverter<'src> {
       Statement::ConstDeclaration(cd) => {
         cd.const_specs(&mut cd.walk())
           .map(|spec| {
-            let spec = spec.map_err(|e| anyhow!("Error converting const spec: {:?}", e))?;
+            let spec = with_ctx(spec, "Error converting const spec")?;
             let names = spec
               .names(&mut cd.walk())
               .filter_map(|name| match name {
@@ -665,24 +701,23 @@ impl<'src> GoConverter<'src> {
                 Err(e) => Some(Err(anyhow!("Error converting const name: {:?}", e))),
               })
               .collect::<Result<Vec<String>>>()?;
-            let type_ = spec
-              .r#type()
-              .transpose()
-              .map_err(|e| anyhow!("Error converting const type: {:?}", e))?
+            let type_ = transpose_with_ctx(spec.r#type(), "Error converting const type")?
               .map(|t| self.convert_type(root, &t))
               .unwrap_or(il::Type::Any);
-            if let Some(Ok(value_list)) = spec.value() {
-              let values = value_list
-                .expressions(&mut cd.walk())
-                .map(|expr| self.convert_expression(root, &expr.unwrap()))
-                .collect::<Result<Vec<_>>>()?;
-              let (values, stmts): (Vec<il::Value>, Vec<Vec<il::Statement>>) =
-                values.into_iter().unzip();
+            if let Some(value_list) =
+              transpose_with_ctx(spec.value(), "Error converting const value")?
+            {
+              let values = self.convert_expression_results(
+                root,
+                value_list.expressions(&mut cd.walk()),
+                "Error converting const value expression",
+              )?;
+              let (values, stmts) = Self::split_expression_results(values);
               let tag = self.source_info.register(*spec.raw());
               // Create assignments for each variable-value pair
               Ok(
                 [
-                  stmts.into_iter().flatten().collect(),
+                  stmts,
                   names
                     .into_iter()
                     .zip(values)
@@ -727,17 +762,17 @@ impl<'src> GoConverter<'src> {
 
         let tag = self.source_info.register(*spec.raw());
 
-        if let Some(Ok(value_list)) = spec.value() {
-          let values = value_list
-            .expressions(&mut vd.walk())
-            .map(|expr| self.convert_expression(root, &expr.unwrap()))
-            .collect::<Result<Vec<_>>>()?;
-          let (values, stmts): (Vec<il::Value>, Vec<Vec<il::Statement>>) =
-            values.into_iter().unzip();
+        if let Some(value_list) = transpose_with_ctx(spec.value(), "Error converting var value")? {
+          let values = self.convert_expression_results(
+            root,
+            value_list.expressions(&mut vd.walk()),
+            "Error converting var value expression",
+          )?;
+          let (values, stmts) = Self::split_expression_results(values);
           // Create assignments for each variable-value pair
           Ok(
             [
-              stmts.into_iter().flatten().collect(),
+              stmts,
               names
                 .into_iter()
                 .zip(values)
@@ -836,9 +871,7 @@ impl<'src> GoConverter<'src> {
         )
       }
       Statement::ForStatement(fs) => {
-        let body = fs
-          .body()
-          .map_err(|e| anyhow!("Error converting for body: {:?}", e))?;
+        let body = with_ctx(fs.body(), "Error converting for body")?;
         let stmts = self.convert_block(root, &body)?;
         let tag = self.source_info.register(*fs.raw());
         match fs.other() {
@@ -874,40 +907,24 @@ impl<'src> GoConverter<'src> {
             }])
           }
           Some(Ok(Expression_ForClause_RangeClause::ForClause(for_clause))) => {
-            let init_stmts = for_clause
-              .initializer()
-              .map(|init| {
-                init
-                  .map_err(|e| anyhow!("Error converting for initializer: {:?}", e))
-                  .and_then(|init| self.convert_simple_statement(root, &init))
-              })
-              .transpose()?
-              .unwrap_or(vec![]);
-            let (cond, cond_stmts) = for_clause
-              .condition()
-              .map(|cond| {
-                cond
-                  .map_err(|e| anyhow!("Error converting for condition: {:?}", e))
-                  .and_then(|cond| self.convert_expression(root, &cond))
-              })
-              .transpose()?
-              .unwrap_or((
-                il::Value {
-                  kind: il::ValueKind::IntLit(1),
-                  extra: ValueExtra::new(None, None),
-                  tag: None,
-                },
-                vec![],
-              ));
-            let update_stmts = for_clause
-              .update()
-              .map(|update| {
-                update
-                  .map_err(|e| anyhow!("Error converting for update: {:?}", e))
-                  .and_then(|update| self.convert_simple_statement(root, &update))
-              })
-              .transpose()?
-              .unwrap_or(vec![]);
+            let init_stmts = map_transposed_or_default(
+              for_clause.initializer(),
+              "Error converting for initializer",
+              vec![],
+              |initializer| self.convert_simple_statement(root, &initializer),
+            )?;
+            let (cond, cond_stmts) = map_transposed_or_default(
+              for_clause.condition(),
+              "Error converting for condition",
+              Self::default_true_condition(),
+              |condition| self.convert_expression(root, &condition),
+            )?;
+            let update_stmts = map_transposed_or_default(
+              for_clause.update(),
+              "Error converting for update",
+              vec![],
+              |update| self.convert_simple_statement(root, &update),
+            )?;
             Ok(vec![il::Statement::For {
               init: init_stmts,
               condition: StatementValue {
@@ -923,64 +940,35 @@ impl<'src> GoConverter<'src> {
         }
       }
       Statement::TypeSwitchStatement(tss) => {
-        let value = tss
-          .value()
-          .map_err(|e| anyhow!("Error converting type switch value: {:?}", e))?;
+        let value = with_ctx(tss.value(), "Error converting type switch value")?;
         let (expr, expr_stmts) = self.convert_expression(root, &value)?;
         let mut cases = Vec::new();
         let others = tss
           .others(&mut tss.walk())
-          .map(|x| x.map_err(|e| anyhow!("Error converting type switch case: {:?}", e)))
+          .map(|x| with_ctx(x, "Error converting type switch case"))
           .collect::<Result<Vec<_>>>()?;
         let (err, default, cases) = others.into_iter().fold(
           (None, None, &mut cases),
           |(err, acc_default, acc_stmts), child| match child {
             DefaultCase_TypeCase::DefaultCase(dc) => {
-              let stmts = dc.statement_list().transpose().map_err(|e| {
-                anyhow!(
-                  "Error converting type switch default case statement list: {:?}",
-                  e
-                )
-              });
-              let stmts = stmts.and_then(|sl| match sl {
-                None => Ok(vec![]),
-                Some(sl) => sl
-                  .statements(&mut sl.walk())
-                  .map(|child| {
-                    child
-                      .map_err(|e| {
-                        anyhow!(
-                          "Error converting type switch default case statement: {:?}",
-                          e
-                        )
-                      })
-                      .and_then(|c| self.convert_statement(root, &c))
-                  })
-                  .collect::<Result<Vec<Vec<il::Statement>>>>()
-                  .map(|inner| inner.into_iter().flatten().collect::<Vec<_>>()),
-              });
+              let stmts = self.convert_optional_statement_list(
+                root,
+                dc.statement_list(),
+                "Error converting type switch default case statement list",
+                "Error converting type switch default case statement",
+              );
               match stmts {
                 Ok(stmts) => (err, Some(stmts), acc_stmts),
                 Err(e) => (Some(e), acc_default, acc_stmts),
               }
             }
             DefaultCase_TypeCase::TypeCase(tc) => {
-              let stmts = tc
-                .statement_list()
-                .transpose()
-                .map_err(|e| anyhow!("Error converting type switch case statement list: {:?}", e));
-              let stmts = stmts.and_then(|sl| match sl {
-                None => Ok(vec![]),
-                Some(sl) => sl
-                  .statements(&mut sl.walk())
-                  .map(|child| {
-                    child
-                      .map_err(|e| anyhow!("Error converting type switch case statement: {:?}", e))
-                      .and_then(|c| self.convert_statement(root, &c))
-                  })
-                  .collect::<Result<Vec<Vec<il::Statement>>>>()
-                  .map(|inner| inner.into_iter().flatten().collect::<Vec<_>>()),
-              });
+              let stmts = self.convert_optional_statement_list(
+                root,
+                tc.statement_list(),
+                "Error converting type switch case statement list",
+                "Error converting type switch case statement",
+              );
               let types = tc
                 .types(&mut tc.walk())
                 .filter_map(|t| match t {
@@ -1049,58 +1037,38 @@ impl<'src> GoConverter<'src> {
         }
       }
       Statement::ExpressionSwitchStatement(ess) => {
-        let initializer = ess
-          .initializer()
-          .transpose()
-          .map_err(|e| anyhow!("Error converting expression switch initializer: {:?}", e))?;
+        let initializer = transpose_with_ctx(
+          ess.initializer(),
+          "Error converting expression switch initializer",
+        )?;
         let init_stmts = initializer
           .map(|init| self.convert_simple_statement(root, &init))
           .transpose()?;
-        let value = ess
-          .value()
-          .transpose()
-          .map_err(|e| anyhow!("Error converting expression switch value: {:?}", e))?;
+        let value = transpose_with_ctx(ess.value(), "Error converting expression switch value")?;
         let expr = value
           .map(|v| self.convert_expression(root, &v))
           .transpose()?;
         let others = ess
           .others(&mut ess.walk())
-          .map(|x| x.map_err(|e| anyhow!("Error converting expression switch case: {:?}", e)))
+          .map(|x| with_ctx(x, "Error converting expression switch case"))
           .collect::<Result<Vec<_>>>()?;
         let (err, default, cases) = others.into_iter().fold(
           (None, None, Vec::new()),
           |(err, default, mut cases), case| match case {
             DefaultCase_ExpressionCase::ExpressionCase(ec) => {
-              let stmts = ec.statement_list().transpose().map_err(|e| {
-                anyhow!(
-                  "Error converting expression switch case statement list: {:?}",
-                  e
-                )
-              });
-              let stmts = stmts.and_then(|sl| match sl {
-                None => Ok(vec![]),
-                Some(sl) => sl
-                  .statements(&mut sl.walk())
-                  .map(|child| {
-                    child
-                      .map_err(|e| {
-                        anyhow!("Error converting expression switch case statement: {:?}", e)
-                      })
-                      .and_then(|c| self.convert_statement(root, &c))
-                  })
-                  .collect::<Result<Vec<Vec<il::Statement>>>>()
-                  .map(|inner| inner.into_iter().flatten().collect::<Vec<_>>()),
-              });
-              let expr = ec
-                .value()
-                .map_err(|e| anyhow!("Error converting expression switch case: {:?}", e))
-                .and_then(|es| {
-                  es.expressions(&mut ec.walk())
-                    .map(|e| {
-                      e.map_err(|e| anyhow!("Error converting expression switch case: {:?}", e))
-                        .and_then(|e| self.convert_expression(root, &e))
-                    })
-                    .collect::<Result<Vec<_>>>()
+              let stmts = self.convert_optional_statement_list(
+                root,
+                ec.statement_list(),
+                "Error converting expression switch case statement list",
+                "Error converting expression switch case statement",
+              );
+              let expr =
+                with_ctx(ec.value(), "Error converting expression switch case").and_then(|es| {
+                  self.convert_expression_results(
+                    root,
+                    es.expressions(&mut ec.walk()),
+                    "Error converting expression switch case",
+                  )
                 });
               match (stmts, expr) {
                 (Ok(stmts), Ok(expr)) => {
@@ -1120,29 +1088,12 @@ impl<'src> GoConverter<'src> {
               }
             }
             DefaultCase_ExpressionCase::DefaultCase(dc) => {
-              let stmts = dc.statement_list().transpose().map_err(|e| {
-                anyhow!(
-                  "Error converting expression switch default case statement list: {:?}",
-                  e
-                )
-              });
-              let stmts = stmts.and_then(|sl| match sl {
-                None => Ok(vec![]),
-                Some(sl) => sl
-                  .statements(&mut sl.walk())
-                  .map(|child| {
-                    child
-                      .map_err(|e| {
-                        anyhow!(
-                          "Error converting expression switch default case statement: {:?}",
-                          e
-                        )
-                      })
-                      .and_then(|c| self.convert_statement(root, &c))
-                  })
-                  .collect::<Result<Vec<Vec<il::Statement>>>>()
-                  .map(|inner| inner.into_iter().flatten().collect::<Vec<_>>()),
-              });
+              let stmts = self.convert_optional_statement_list(
+                root,
+                dc.statement_list(),
+                "Error converting expression switch default case statement list",
+                "Error converting expression switch default case statement",
+              );
               match stmts {
                 Ok(stmts) => (err, Some(stmts), cases),
                 Err(e) => (Some(e), default, cases),
@@ -1178,21 +1129,20 @@ impl<'src> GoConverter<'src> {
         }
       }
       Statement::ReturnStatement(rs) => {
-        let values = rs
-          .expression_list()
-          .transpose()
-          .map_err(|e| anyhow!("Error converting return statement: {:?}", e))?
-          .map(|x| {
-            x.expressions(&mut x.walk())
-              .map(|expr| self.convert_expression(root, &expr.unwrap()))
-              .collect::<Result<Vec<_>>>()
-          })
-          .unwrap_or(Ok(vec![]))?;
-        let (values, stmts): (Vec<il::Value>, Vec<Vec<il::Statement>>) = values.into_iter().unzip();
+        let values =
+          match transpose_with_ctx(rs.expression_list(), "Error converting return statement")? {
+            Some(expr_list) => self.convert_expression_results(
+              root,
+              expr_list.expressions(&mut expr_list.walk()),
+              "Error converting return expression",
+            )?,
+            None => vec![],
+          };
+        let (values, stmts) = Self::split_expression_results(values);
         let tag = self.source_info.register(*rs.raw());
         Ok(
           [
-            stmts.into_iter().flatten().collect(),
+            stmts,
             vec![il::Statement::Return {
               // TODO: Handle multiple return values
               value: values.first().cloned(),
@@ -1221,20 +1171,22 @@ impl<'src> GoConverter<'src> {
         let mut left_values = Vec::new();
         let mut left_stmts = Vec::new();
         if let Ok(left_list) = s.left() {
-          for expr in left_list.expressions(&mut s.walk()) {
-            let (value, stmts) = self.convert_expression(root, &expr.unwrap())?;
-            left_values.push(value);
-            left_stmts.extend(stmts);
-          }
+          let left = self.convert_expression_results(
+            root,
+            left_list.expressions(&mut s.walk()),
+            "Error converting short var declaration left expression",
+          )?;
+          (left_values, left_stmts) = Self::split_expression_results(left);
         }
         let mut right_values = Vec::new();
         let mut right_stmts = Vec::new();
         if let Ok(right_list) = s.right() {
-          for expr in right_list.expressions(&mut s.walk()) {
-            let (value, stmts) = self.convert_expression(root, &expr.unwrap())?;
-            right_values.push(value);
-            right_stmts.extend(stmts);
-          }
+          let right = self.convert_expression_results(
+            root,
+            right_list.expressions(&mut s.walk()),
+            "Error converting short var declaration right expression",
+          )?;
+          (right_values, right_stmts) = Self::split_expression_results(right);
         }
         let tag = self.source_info.register(*s.raw());
         // Create assignments for each variable-value pair
@@ -1292,8 +1244,7 @@ impl<'src> GoConverter<'src> {
       }
       SimpleStatement::IncStatement(is) => {
         let tag = self.source_info.register(*is.raw());
-        is.expression()
-          .map_err(|e| anyhow!("Error converting increment statement: {:?}", e))
+        with_ctx(is.expression(), "Error converting increment statement")
           .and_then(|expr| self.convert_expression(root, &expr))
           .map(|(value, stmts)| {
             [
@@ -1321,8 +1272,7 @@ impl<'src> GoConverter<'src> {
       }
       SimpleStatement::DecStatement(ds) => {
         let tag = self.source_info.register(*ds.raw());
-        ds.expression()
-          .map_err(|e| anyhow!("Error converting decrement statement: {:?}", e))
+        with_ctx(ds.expression(), "Error converting decrement statement")
           .and_then(|expr| self.convert_expression(root, &expr))
           .map(|(value, stmts)| {
             [
@@ -1352,20 +1302,22 @@ impl<'src> GoConverter<'src> {
         let mut left_values = Vec::new();
         let mut left_stmts = Vec::new();
         if let Ok(left_list) = asg.left() {
-          for expr in left_list.expressions(&mut asg.walk()) {
-            let (value, stmts) = self.convert_expression(root, &expr.unwrap())?;
-            left_values.push(value);
-            left_stmts.extend(stmts);
-          }
+          let left = self.convert_expression_results(
+            root,
+            left_list.expressions(&mut asg.walk()),
+            "Error converting assignment left expression",
+          )?;
+          (left_values, left_stmts) = Self::split_expression_results(left);
         }
         let mut right_values = Vec::new();
         let mut right_stmts = Vec::new();
         if let Ok(right_list) = asg.right() {
-          for expr in right_list.expressions(&mut asg.walk()) {
-            let (value, stmts) = self.convert_expression(root, &expr.unwrap())?;
-            right_values.push(value);
-            right_stmts.extend(stmts);
-          }
+          let right = self.convert_expression_results(
+            root,
+            right_list.expressions(&mut asg.walk()),
+            "Error converting assignment right expression",
+          )?;
+          (right_values, right_stmts) = Self::split_expression_results(right);
         }
         let tag = self.source_info.register(*asg.raw());
         // Create assignments for each variable-value pair
@@ -1434,13 +1386,10 @@ impl<'src> GoConverter<'src> {
     root: &AstGrep<StrDoc<SupportLang>>,
     node: &LiteralElement<'src>,
   ) -> Result<(il::Value, Vec<il::Statement>)> {
-    node
-      .child()
-      .map_err(|e| anyhow!("Error converting literal element child: {:?}", e))
-      .and_then(|child| match child {
-        Expression_LiteralValue::Expression(e) => self.convert_expression(root, &e),
-        Expression_LiteralValue::LiteralValue(le) => self.convert_literal_value(root, &le),
-      })
+    with_ctx(node.child(), "Error converting literal element child").and_then(|child| match child {
+      Expression_LiteralValue::Expression(e) => self.convert_expression(root, &e),
+      Expression_LiteralValue::LiteralValue(le) => self.convert_literal_value(root, &le),
+    })
   }
 
   fn convert_literal_value(
@@ -1451,28 +1400,22 @@ impl<'src> GoConverter<'src> {
     let elements = node
       .children(&mut node.walk())
       .map(|child| {
-        child
-          .map_err(|e| anyhow!("Error converting literal element child: {:?}", e))
-          .and_then(|e| match e {
-            KeyedElement_LiteralElement::KeyedElement(ke) => {
-              let (key, key_stmts) = ke
-                .key()
-                .map_err(|e| anyhow!("Error converting keyed element key: {:?}", e))
-                .and_then(|k| self.convert_literal_element(root, &k))?;
-              let (value, value_stmts) = ke
-                .value()
-                .map_err(|e| anyhow!("Error converting keyed element value: {:?}", e))
-                .and_then(|v| self.convert_literal_element(root, &v))?;
-              Ok((
-                (Some(key), value),
-                key_stmts.into_iter().chain(value_stmts).collect(),
-              ))
-            }
-            KeyedElement_LiteralElement::LiteralElement(le) => {
-              let (value, stmts) = self.convert_literal_element(root, &le)?;
-              Ok(((None, value), stmts))
-            }
-          })
+        with_ctx(child, "Error converting literal element child").and_then(|e| match e {
+          KeyedElement_LiteralElement::KeyedElement(ke) => {
+            let (key, key_stmts) = with_ctx(ke.key(), "Error converting keyed element key")
+              .and_then(|k| self.convert_literal_element(root, &k))?;
+            let (value, value_stmts) = with_ctx(ke.value(), "Error converting keyed element value")
+              .and_then(|v| self.convert_literal_element(root, &v))?;
+            Ok((
+              (Some(key), value),
+              key_stmts.into_iter().chain(value_stmts).collect(),
+            ))
+          }
+          KeyedElement_LiteralElement::LiteralElement(le) => {
+            let (value, stmts) = self.convert_literal_element(root, &le)?;
+            Ok(((None, value), stmts))
+          }
+        })
       })
       .collect::<Result<Vec<_>>>()?;
     let (kvs, stmts): (Vec<(Option<il::Value>, il::Value)>, Vec<Vec<il::Statement>>) =
@@ -1600,16 +1543,11 @@ impl<'src> GoConverter<'src> {
         ))
       }
       Expression::UnaryExpression(ue) => {
-        let op = self.convert_unary_operator(
-          &ue
-            .operator()
-            .map_err(|e| anyhow!("Error converting unary operator: {:?}", e))?,
-        );
+        let op =
+          self.convert_unary_operator(&with_ctx(ue.operator(), "Error converting unary operator")?);
         let (value, stmts) = self.convert_expression(
           root,
-          &ue
-            .operand()
-            .map_err(|e| anyhow!("Error converting unary operand: {:?}", e))?,
+          &with_ctx(ue.operand(), "Error converting unary operand")?,
         )?;
         if op == il::UnaryOp::Mul {
           return Ok((
@@ -1665,9 +1603,7 @@ impl<'src> GoConverter<'src> {
       }
       Expression::SelectorExpression(se) => {
         let (base, base_stmts) = self.convert_expression(root, &se.operand().unwrap())?;
-        let field = se
-          .field()
-          .map_err(|e| anyhow!("Error converting field: {:?}", e))?
+        let field = with_ctx(se.field(), "Error converting field")?
           .utf8_text(root.source().as_bytes())?
           .to_string();
         Ok((
@@ -1683,22 +1619,16 @@ impl<'src> GoConverter<'src> {
         ))
       }
       Expression::CallExpression(ce) => {
-        let function = ce
-          .function()
-          .map_err(|e| anyhow!("Error converting call expression: {:?}", e))?;
+        let function = with_ctx(ce.function(), "Error converting call expression")?;
         let (func_value, func_stmts) = self.convert_expression(root, &function)?;
-        let args = ce
-          .arguments()
-          .map_err(|e| anyhow!("Error converting call expression: {:?}", e))?
+        let args = with_ctx(ce.arguments(), "Error converting call expression")?
           .children(&mut ce.walk())
           .map(|e| match e {
             Ok(Expression_Type_VariadicArgument::Expression(e)) => {
               self.convert_expression(root, &e)
             }
             Ok(Expression_Type_VariadicArgument::VariadicArgument(e)) => {
-              let expr = e
-                .expression()
-                .map_err(|e| anyhow!("Error converting call expression: {:?}", e))?;
+              let expr = with_ctx(e.expression(), "Error converting call expression")?;
               self.convert_expression(root, &expr)
             }
             Ok(Expression_Type_VariadicArgument::Type(t)) => {
@@ -1733,41 +1663,19 @@ impl<'src> GoConverter<'src> {
         };
         Ok((
           tmp_var,
-          [
-            func_stmts,
-            args_stmts.into_iter().flatten().collect(),
-            vec![invoke_stmt],
-          ]
-          .concat(),
+          [func_stmts, flatten_nested(args_stmts), vec![invoke_stmt]].concat(),
         ))
       }
       Expression::FuncLiteral(fl) => {
-        let parameter_list = fl
-          .parameters()
-          .map_err(|e| anyhow!("Error converting function parameters: {:?}", e))?;
+        let parameter_list = with_ctx(fl.parameters(), "Error converting function parameters")?;
         let params = self.convert_parameter_list(root, &parameter_list)?;
-        let params = params
-          .iter()
-          .map(|p| match &p {
-            il::Value {
-              kind: il::ValueKind::Ident(name),
-              extra:
-                ValueExtra {
-                  type_declared: Some(t),
-                  ..
-                },
-              ..
-            } => Ok((t.clone(), name.clone())),
-            _ => Err(anyhow!("Unsupported parameter type")),
-          })
-          .collect::<Result<Vec<(il::Type, String)>>>()?;
-        let ret_type = fl
-          .result()
-          .transpose()
-          .map_err(|e| anyhow!("Error converting function result type: {:?}", e))?
-          .map(|t| self.convert_simple_type_parameter_list(root, &t))
-          .transpose()?
-          .unwrap_or(vec![]);
+        let params = Self::collect_typed_params(params, "function literal params");
+        let ret_type = map_transposed_or_default(
+          fl.result(),
+          "Error converting function result type",
+          vec![],
+          |result| self.convert_simple_type_parameter_list(root, &result),
+        )?;
         let (method_var, method_name) = self.get_tmp_var(Some(il::Type::Function {
           params: params.iter().map(|(t, _)| t.clone()).collect(),
           ret: ret_type.clone(),
@@ -1779,10 +1687,8 @@ impl<'src> GoConverter<'src> {
         };
         let method_decl = il::DefineKind::Method {
           sig: method_sig,
-          body: fl
-            .body()
-            .map_err(|e| anyhow!("Error converting function body: {:?}", e))
-            .and_then(|b| self.convert_block(root, &b))?,
+          body: with_ctx(fl.body(), "Error converting function body")
+            .and_then(|body| self.convert_block(root, &body))?,
           ret_type,
         };
         let tag = self.source_info.register(*fl.raw());
@@ -1800,13 +1706,9 @@ impl<'src> GoConverter<'src> {
         ))
       }
       Expression::CompositeLiteral(cl) => {
-        let body = cl
-          .body()
-          .map_err(|e| anyhow!("Error converting composite literal body: {:?}", e))?;
+        let body = with_ctx(cl.body(), "Error converting composite literal body")?;
         let (elems, stmts) = self.convert_literal_value(root, &body)?;
-        let type_ = cl
-          .r#type()
-          .map_err(|e| anyhow!("Error converting composite literal type: {:?}", e))
+        let type_ = with_ctx(cl.r#type(), "Error converting composite literal type")
           .and_then(|t| self.convert_composite_literal_type(root, &t))?;
         let tag = self.source_info.register(*cl.raw());
         Ok((
